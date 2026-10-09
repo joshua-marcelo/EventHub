@@ -1,0 +1,3 @@
+-- Local development seed (used by `supabase db reset` on a local stack only).
+-- Migrations intentionally do not seed colleges or event categories until the
+-- client provides the official lists (SYSTEM_SPEC §20, item C3; docs/DECISIONS.md D-001).

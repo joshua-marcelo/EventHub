@@ -12,6 +12,14 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local AI/design tooling folders (git-ignored, not app code):
+    ".agent/**",
+    ".agents/**",
+    ".claude/**",
+    ".codex/**",
+    ".gemini/**",
+    ".pixel-agents/**",
+    ".impeccable/**",
   ]),
 ]);
 
