@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local AI/design tooling (developer-machine only, not part of the client repo)
+/.agent/
+/.agents/
+/.claude/
+/.codex/
+/.gemini/
+/.pixel-agents/
+/.impeccable/
