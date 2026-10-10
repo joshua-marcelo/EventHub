@@ -2,7 +2,7 @@
 
 Companion to [SYSTEM_SPEC.md](./SYSTEM_SPEC.md). The spec defines *what*; this plan defines *in what order* and *how we know each step is done*. Section references like "§9.3" point to the spec.
 
-Status: DRAFT. **No implementation starts until the plan is approved and the [CONFIRM] items in spec §20 are answered** (or explicitly accepted as recommended).
+Status: APPROVED, implementation in progress. Phase 0 and Phase 1 are complete (2026-10-10); Phase 2 has not started. The spec §20 recommendations were accepted except C1, C2 and C3, which still need client data ([DECISIONS.md](./DECISIONS.md) D-001).
 
 ---
 
@@ -81,39 +81,44 @@ Goal: answer open questions and prepare tooling; no features.
 
 Goal: identity tables and authorization primitives everything else depends on.
 
+**Status: ✅ Complete (2026-10-10)**, except the lookup seed rows, which are blocked on client data (C3, D-001). Migrations are applied to the client project; see [DECISIONS.md](./DECISIONS.md) D-006 – D-008.
+
 ### Migration order (files are applied in this order)
 
+Actual file names use the remote migration versions (`supabase/migrations/20261009202616_extensions_and_enums.sql` … `20261009202653_audit_logs.sql`), plus `20261010012943_profiles_select_policy_consolidation.sql` (D-007).
+
 1. `0001_extensions_and_enums.sql`
-   - [ ] Ensure `pgcrypto` (in `extensions` schema) is available.
-   - [ ] Create all enums from spec §12.1 (created up front so later migrations don't alter types).
-   - [ ] `set_updated_at()` trigger function.
+   - [x] Ensure `pgcrypto` (in `extensions` schema) is available.
+   - [x] Create all enums from spec §12.1 (created up front so later migrations don't alter types).
+   - [x] `set_updated_at()` trigger function.
 2. `0002_lookups.sql`
-   - [ ] `colleges`, `event_categories` + RLS (select for anon/authenticated) + seed rows (from C3).
+   - [x] `colleges`, `event_categories` + RLS (select for anon/authenticated).
+   - [ ] Seed rows (from C3). — **Blocked:** official lists not yet provided by the client. No placeholder rows are created (D-001).
 3. `0003_profiles.sql`
-   - [ ] `profiles` table per §12.2 incl. generated `is_complete`, constraints, indexes.
-   - [ ] `handle_new_user()` trigger on `auth.users` (copies id, email, name metadata if present).
-   - [ ] Email-sync trigger on `auth.users` update of email.
-   - [ ] `REVOKE UPDATE ON profiles FROM authenticated; GRANT UPDATE (first_name, middle_name, last_name, suffix, student_id, college_id, program, year_level, avatar_path) ON profiles TO authenticated;`
-   - [ ] Trigger blocking `student_id` change once certificates exist (add the check body in P9; create stub now or add trigger in P9 — choose P9 to avoid forward references).
+   - [x] `profiles` table per §12.2 incl. generated `is_complete`, constraints, indexes.
+   - [x] `handle_new_user()` trigger on `auth.users` (copies id, email, name metadata if present).
+   - [x] Email-sync trigger on `auth.users` update of email.
+   - [x] `REVOKE UPDATE ON profiles FROM authenticated; GRANT UPDATE (first_name, middle_name, last_name, suffix, student_id, college_id, program, year_level, avatar_path) ON profiles TO authenticated;`
+   - [ ] Trigger blocking `student_id` change once certificates exist (add the check body in P9; create stub now or add trigger in P9 — choose P9 to avoid forward references). — Deferred to Phase 9 as chosen; not a Phase 1 deliverable.
 4. `0004_auth_helpers.sql`
-   - [ ] `is_admin()`, `is_active_organizer()` (STABLE, SECURITY DEFINER, `search_path=''`).
-   - [ ] `profile_full_name(profiles)`.
+   - [x] `is_admin()`, `is_active_organizer()` (STABLE, SECURITY DEFINER, `search_path=''`).
+   - [x] `profile_full_name(profiles)`.
 5. `0005_profiles_rls.sql`
-   - [ ] Policies: select own; select all if admin; update own. (Organizer visibility via `can_view_profile` added in P6 once registrations exist.)
+   - [x] Policies: select own; select all if admin; update own. (Organizer visibility via `can_view_profile` added in P6 once registrations exist.)
 6. `0006_audit_logs.sql`
-   - [ ] `audit_logs` table, RLS (admin select), internal `log_audit(action, entity_type, entity_id, metadata)` helper (not granted to clients).
+   - [x] `audit_logs` table, RLS (admin select), internal `log_audit(action, entity_type, entity_id, metadata)` helper (not granted to clients).
 
 ### Tests (`supabase/tests/` SQL, run via `npm run test:db`)
-- [ ] Test harness: helper to create test users in `auth.users` and impersonate (`set local role authenticated; set local request.jwt.claims`).
-- [ ] New auth user → profile row created with email.
-- [ ] User can read/update own profile; cannot read another's; cannot update `is_admin` or `organizer_status` (permission denied).
-- [ ] Admin can read all profiles.
-- [ ] `is_complete` flips true only when all required fields set.
+- [x] Test harness: helper to create test users in `auth.users` and impersonate (`set local role authenticated; set local request.jwt.claims`). — Inline fixtures and impersonation in `001_profiles.test.sql`; extract a shared helper when a second test file needs it.
+- [x] New auth user → profile row created with email.
+- [x] User can read/update own profile; cannot read another's; cannot update `is_admin` or `organizer_status` (permission denied).
+- [x] Admin can read all profiles.
+- [x] `is_complete` flips true only when all required fields set.
 
 **Verification**
-- [ ] All SQL tests pass.
-- [ ] Supabase security advisor: no "RLS disabled", no "function search_path mutable" warnings.
-- [ ] Types generated and committed.
+- [x] All SQL tests pass. — 32/32 on the client project through the Supabase MCP integration, rolled back (D-006). `npm run test:db` still needs the CLI link.
+- [x] Supabase security advisor: no "RLS disabled", no "function search_path mutable" warnings. — 0 security findings. Performance: only `unused_index` INFO notices, expected on an empty database (D-007).
+- [x] Types generated and committed. — `lib/database.types.ts` via the Supabase MCP integration.
 
 ---
 
