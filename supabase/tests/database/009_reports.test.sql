@@ -1,0 +1,47 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+select plan(16);
+insert into public.colleges(code,name) values('CERT-TEST','Certificate Test College');
+insert into public.programs(college_id,name) select id,'Certificate Test Program' from public.colleges where code='CERT-TEST';
+insert into public.event_categories(name,slug) values('Certificate Test','certificate-test');
+insert into auth.users(instance_id,id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,is_anonymous,created_at,updated_at)
+select '00000000-0000-0000-0000-000000000000',('e1000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'authenticated','authenticated','att-'||n||'@test.local',now(),'{}','{"first_name":"Attendance","last_name":"Test"}',false,now(),now() from generate_series(1,8)n;
+update public.profiles set student_id='ATT-'||right(id::text,4),college_id=(select id from public.colleges where code='CERT-TEST'),program_id=(select id from public.programs where name='Certificate Test Program'),year_level=1,avatar_path=id::text||'/photo.png',privacy_consented_at=now(),privacy_notice_version='2026-10-draft' where id::text like 'e1000000-%' ;
+update public.profiles set organizer_status='active',organizer_since=now() where id='e1000000-0000-4000-8000-000000000001';
+insert into public.events(id,organizer_id,title,description,venue,category_id,starts_at,ends_at,registration_opens_at,registration_closes_at,status,attendance_policy,allow_onsite_registration)
+values('ee000000-0000-4000-8000-000000000001','e1000000-0000-4000-8000-000000000001','Certificate Test Event',repeat('description ',3),'University Hall',(select id from public.event_categories where slug='certificate-test'),now()-interval '1 hour',now()+interval '1 hour',now()-interval '1 day',now()-interval '2 hours','published','time_in_and_out',true);
+insert into public.event_registrations(id,event_id,user_id,status) select ('ea000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'ee000000-0000-4000-8000-000000000001',('e1000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,case when n=8 then 'pending'::public.registration_status else 'approved'::public.registration_status end from generate_series(2,8)n;
+update public.events set certificates_enabled=true where id='ee000000-0000-4000-8000-000000000001';
+insert into public.attendance_records(registration_id,event_id,user_id,time_in_method,time_in_at,time_out_at,time_out_method,flag,status,revoked_at,revoked_by)
+select ('ea000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'ee000000-0000-4000-8000-000000000001',('e1000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'qr',now()-interval '30 minutes',case when n=3 then null else now() end,case when n=3 then null else 'qr' end,case when n=4 then 'shared_device' end,case when n=6 then 'revoked' else 'present' end,case when n=6 then now() end,case when n=6 then 'e1000000-0000-4000-8000-000000000001'::uuid end from generate_series(2,6)n;
+update public.profiles set identity_flagged_at=now(),identity_flag_reason='Test identity review' where id='e1000000-0000-4000-8000-000000000005';
+select set_config('request.jwt.claims','{"sub":"e1000000-0000-4000-8000-000000000001","role":"authenticated","is_anonymous":false}',true);
+set local role authenticated;
+select is(public.complete_event('ee000000-0000-4000-8000-000000000001'),'ok','event completed');
+select is(public.issue_certificates('ee000000-0000-4000-8000-000000000001')->>'code','ok','eligible issued');
+select is((public.get_event_report('ee000000-0000-4000-8000-000000000001')->>'registered')::int,7,'registered includes approved and pending only');
+select is((public.get_event_report('ee000000-0000-4000-8000-000000000001')->>'approved')::int,6,'approved denominator');
+select is((public.get_event_report('ee000000-0000-4000-8000-000000000001')->>'attended')::int,4,'revoked attendance excluded');
+select is((public.get_event_report('ee000000-0000-4000-8000-000000000001')->>'attendance_rate')::numeric,66.7::numeric,'rate derives from approved');
+select is((public.get_event_report('ee000000-0000-4000-8000-000000000001')->>'certificates_issued')::int,1,'certificates derived');
+select is((select count(*)::int from public.export_event_report('ee000000-0000-4000-8000-000000000001')),7,'CSV all registration statuses');
+select ok(not (select to_jsonb(x)?|array['email','avatar_path','photo','reason','user_id'] from public.export_event_report('ee000000-0000-4000-8000-000000000001')x limit 1),'CSV whitelist');
+select set_config('request.jwt.claims','{"sub":"e1000000-0000-4000-8000-000000000002","role":"authenticated","is_anonymous":false}',true);
+select ok(public.get_event_report('ee000000-0000-4000-8000-000000000001') is null,'participant report denied');
+select is((select count(*)::int from public.export_event_report('ee000000-0000-4000-8000-000000000001')),0,'participant export denied');
+reset role;
+update public.events set completed_at=now()-interval '31 days' where id='ee000000-0000-4000-8000-000000000001';
+update public.profiles set organizer_status='suspended' where id='e1000000-0000-4000-8000-000000000001';
+select set_config('request.jwt.claims','{"sub":"e1000000-0000-4000-8000-000000000001","role":"authenticated","is_anonymous":false}',true);
+set local role authenticated;
+select ok(public.get_event_report('ee000000-0000-4000-8000-000000000001') is not null,'suspended owner retains reports');
+select is((select count(*)::int from public.export_event_report('ee000000-0000-4000-8000-000000000001') where student_id is not null or college is not null or program is not null or name<>'Profile access expired'),0,'expired per-event profiles hidden from CSV');
+select is((select count(*)::int from jsonb_array_elements(public.get_certificate_eligibility('ee000000-0000-4000-8000-000000000001')->'participants')x where x->>'name'<>'Profile access expired'),0,'eligibility honors profile cutoff');
+reset role;
+update public.profiles set organizer_status='active' where id='e1000000-0000-4000-8000-000000000001';
+set local role authenticated;
+select is(jsonb_array_length(public.get_attendance_feed('ee000000-0000-4000-8000-000000000001')->'records'),0,'display honors profile cutoff');
+set local role anon;
+select throws_ok($$select public.get_event_report('ee000000-0000-4000-8000-000000000001')$$,'42501',null,'anonymous reports denied');
+select * from finish();
+rollback;

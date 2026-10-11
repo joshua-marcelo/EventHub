@@ -13,7 +13,7 @@ export async function renderCertificate(c:CertificateSnapshot,origin:string,logo
  page.drawRectangle({x:24,y:24,width:width-48,height:page.getHeight()-48,borderColor:ink,borderWidth:1});
  page.drawRectangle({x:24,y:page.getHeight()-32,width:width-48,height:8,color:orange});
  const image=await pdf.embedPng(logo),dimensions=image.scaleToFit(190,48);page.drawImage(image,{x:(width-dimensions.width)/2,y:486,width:dimensions.width,height:dimensions.height});
- function centered(text:string,y:number,size:number,font=regular,max=720,tint=ink){const clean=printable(text,font);while(font.widthOfTextAtSize(clean,size)>max&&size>10)size-=.5;page.drawText(clean,{x:(width-font.widthOfTextAtSize(clean,size))/2,y,size,font,color:tint});}
+ function centered(text:string,y:number,size:number,font=regular,max=720,tint=ink){const clean=printable(text,font);size=Math.min(size,max/(font.widthOfTextAtSize(clean,1)||1));page.drawText(clean,{x:(width-font.widthOfTextAtSize(clean,size))/2,y,size,font,color:tint});}
  centered("CERTIFICATE OF PARTICIPATION",427,28,bold);
  centered("This certificate is presented to",382,13,regular,720,muted);
  centered(c.recipient_name,330,37,serif);

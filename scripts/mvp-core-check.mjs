@@ -9,6 +9,7 @@ const [owner,one,two,other]=await Promise.all([1,2,3,4].map(login));
 const actions=Object.fromEntries(Object.entries(JSON.parse(readFileSync(".next/server/server-reference-manifest.json")).node).map(([id,v])=>[v.exportedName,id]));
 async function action(name,args,user,path){const r=await fetch(APP+path,{method:"POST",redirect:"manual",headers:{"Next-Action":actions[name],Accept:"text/x-component","Content-Type":"text/plain;charset=UTF-8",Origin:APP,cookie:user.header()},body:JSON.stringify(args)});const text=await r.text();return {r,text};}
 async function page(path,user){const r=await fetch(APP+path,{redirect:"manual",headers:user?{cookie:user.header()}:{}});return {r,html:(await r.text()).replace(/<!--.*?-->/g,"")};}
+const guestScan=await page("/scan?t="+"A".repeat(48));check("login discards expiring scan token",new globalThis.URL(guestScan.r.headers.get("location"),APP).searchParams.get("next")==="/scan");
 check("attendance page renders",(await page(route,owner)).html.includes("Start Attendance"));
 check("foreign organizer workspace denied",(await page(route,other)).html.includes("Page not found"));
 const opened=await action("attendanceAction",[event,"time_in"],owner,route);check("real Start Attendance redirects to display",opened.r.headers.get("x-action-redirect")?.includes("/attendance/display"));
@@ -40,6 +41,14 @@ if(!process.argv.includes("--attendance-only")){
  const {data:certs}=await owner.client.from("certificates").select("*").eq("event_id",event);
  check("one eligible certificate issued; missing timeout skipped",certs?.length===1);if(!certs?.length)throw Error("Certificate missing");
  const cert=certs[0];
+ const reportRoute=`/organizer/events/${event}/reports`;
+ check("event report shows basic summary",(await page(reportRoute,owner)).html.includes("Attendance rate"));
+ const report=await owner.client.rpc("get_event_report",{p_event_id:event});
+ check("derived report counts match facts",report.data?.registered===2&&report.data?.approved===2&&report.data?.attended===2&&report.data?.attendance_rate===100&&report.data?.certificates_issued===1);
+ const exported=await fetch(APP+reportRoute+"/export",{headers:{cookie:owner.header()}}),csv=await exported.text();
+ check("CSV exports private minimal columns",exported.status===200&&exported.headers.get("cache-control")==="private, no-store"&&csv.includes("Core Live 2 Test")&&csv.includes("CORE-0002")&&!csv.includes("@eventhub.test")&&!csv.includes("avatar")&&!csv.includes("reason"));
+ check("foreign organizer CSV denied",(await page(reportRoute+"/export",other)).r.status===404);
+ check("participant report RPC denied",(await one.client.rpc("get_event_report",{p_event_id:event})).data===null);
  check("holder certificate list renders",(await page("/certificates",one)).html.includes(cert.certificate_number));
  const pdf=await fetch(APP+`/certificates/${cert.id}/pdf`,{headers:{cookie:one.header()}});const bytes=Buffer.from(await pdf.arrayBuffer());
  check("holder downloads real PDF",pdf.status===200&&pdf.headers.get("content-type")==="application/pdf"&&bytes.subarray(0,5).toString()==="%PDF-");

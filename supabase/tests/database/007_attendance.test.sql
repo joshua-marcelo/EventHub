@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(35);
+select plan(44);
 insert into public.colleges(code,name) values('ATT-TEST','Attendance Test College');
 insert into public.programs(college_id,name) select id,'Attendance Test Program' from public.colleges where code='ATT-TEST';
 insert into public.event_categories(name,slug) values('Attendance Test','attendance-test');
@@ -17,6 +17,10 @@ select is(public.open_attendance_session('de000000-0000-4000-8000-000000000001',
 select is(jsonb_array_length(public.get_attendance_qr('de000000-0000-4000-8000-000000000001')->'tokens'),3,'current plus two windows prefetched');
 select set_config('test.token',public.get_attendance_qr('de000000-0000-4000-8000-000000000001')->'tokens'->0->>'token',true);
 select set_config('test.future',public.get_attendance_qr('de000000-0000-4000-8000-000000000001')->'tokens'->1->>'token',true);
+reset role;
+select set_config('test.previous',private.attendance_token((select id from public.attendance_sessions where event_id='de000000-0000-4000-8000-000000000001' and status='open'),floor(extract(epoch from now())/30)::integer-1),true);
+select set_config('test.expired',private.attendance_token((select id from public.attendance_sessions where event_id='de000000-0000-4000-8000-000000000001' and status='open'),floor(extract(epoch from now())/30)::integer-2),true);
+set local role authenticated;
 select is(length(current_setting('test.token')),48,'36-byte compact token');
 select is(public.set_attendance_settings('de000000-0000-4000-8000-000000000001','time_in_only',60,true),'attendance_locked','policy locked after session');
 select throws_ok($$select * from public.attendance_session_secrets$$,'42501',null,'secrets cannot be read');
@@ -27,9 +31,12 @@ select is(public.open_attendance_session('de000000-0000-4000-8000-000000000001',
 select ok(public.get_attendance_feed('de000000-0000-4000-8000-000000000001') is null,'participant cannot read public display feed');
 select is(public.submit_attendance_scan('invalid','device-test-123456')->>'code','invalid_qr','static registration QR rejected');
 select is(public.submit_attendance_scan(current_setting('test.future'),'device-test-123456')->>'code','expired_qr','future token rejected');
+select is(public.submit_attendance_scan(current_setting('test.expired'),'device-test-123456')->>'code','expired_qr','old token rejected');
+select is(public.submit_attendance_scan(left(current_setting('test.token'),47)||case when right(current_setting('test.token'),1)='A' then 'B' else 'A' end,'device-test-123456')->>'code','invalid_qr','tampered MAC rejected');
 select is(public.submit_attendance_scan(current_setting('test.token'),'device-test-123456','de000000-0000-4000-8000-000000000009')->>'code','wrong_event','event mismatch rejected');
 select is(public.submit_attendance_scan(current_setting('test.token'),'device-test-123456')->>'code','timed_in','approved participant timed in');
 select is(public.submit_attendance_scan(current_setting('test.token'),'device-test-123456')->>'code','already_timed_in','duplicate scan idempotent');
+select is(public.submit_attendance_scan(current_setting('test.previous'),'device-test-123456')->>'code','already_timed_in','previous window remains accepted');
 select is((select count(*)::int from public.attendance_records),1,'participant only reads own attendance');
 select set_config('request.jwt.claims','{"sub":"d1000000-0000-4000-8000-000000000004","role":"authenticated","is_anonymous":false}',true);
 select is(public.submit_attendance_scan(current_setting('test.token'),'device-test-123456')->>'code','registration_not_approved','pending participant denied');
@@ -58,7 +65,25 @@ select set_config('request.jwt.claims','{"sub":"d1000000-0000-4000-8000-00000000
 select is(public.correct_attendance('da000000-0000-4000-8000-000000000002','clear_flag',''),'reason_required','correction requires note');
 select is(public.correct_attendance('da000000-0000-4000-8000-000000000002','clear_flag','Verified participant at venue'),'ok','owner resolves flag');
 select is(public.correct_attendance('da000000-0000-4000-8000-000000000003','revoke_flag','Proxy attendance confirmed'),'ok','owner revokes flagged attendance');
+reset role;
+select throws_ok($$update public.events set starts_at=starts_at-interval '1 hour' where id='de000000-0000-4000-8000-000000000001'$$,'23514',null,'schedule locked after attendance starts');
+insert into public.events(id,organizer_id,title,description,venue,category_id,starts_at,ends_at,registration_opens_at,registration_closes_at,status)
+select 'de000000-0000-4000-8000-000000000002',organizer_id,'Future Attendance Event',description,venue,category_id,now()+interval '2 days',now()+interval '2 days 1 hour',registration_opens_at,registration_closes_at,'published' from public.events where id='de000000-0000-4000-8000-000000000001';
+set local role authenticated;
+select is(public.open_attendance_session('de000000-0000-4000-8000-000000000002','time_in'),'outside_window','future event attendance refused');
+reset role;
+update public.profiles set organizer_status='suspended' where id='d1000000-0000-4000-8000-000000000001';
+set local role authenticated;
+select is((select count(*)::int from public.attendance_sessions where event_id='de000000-0000-4000-8000-000000000001' and status='open'),0,'suspension closes open sessions');
+select is(public.open_attendance_session('de000000-0000-4000-8000-000000000001','time_out'),'not_permitted','suspended organizer cannot reopen');
+reset role;
+update public.profiles set organizer_status='active' where id='d1000000-0000-4000-8000-000000000001';
+set local role authenticated;
+select is(public.open_attendance_session('de000000-0000-4000-8000-000000000001','time_out'),'ok','reinstated owner reopens timeout');
+select set_config('test.out',public.get_attendance_qr('de000000-0000-4000-8000-000000000001')->'tokens'->0->>'token',true);
 select is(public.complete_event('de000000-0000-4000-8000-000000000001'),'ok','owner completes event');
 select is(public.submit_attendance_scan(current_setting('test.out'),'other-device-123456')->>'code','attendance_closed','completion invalidates QR');
+set local role anon;
+select throws_ok($$select public.submit_attendance_scan(current_setting('test.token'),'device-test-123456')$$,'42501',null,'anonymous cannot submit scans');
 select * from finish();
 rollback;

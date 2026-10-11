@@ -29,7 +29,10 @@ export async function attendanceDisplay(eventId:string):Promise<AttendanceState|
  if(!idSchema.safeParse(eventId).success)return null;await requireOrganizer();const c=await createClient();
  const [q,f]=await Promise.all([c.rpc("get_attendance_qr",{p_event_id:eventId}),c.rpc("get_attendance_feed",{p_event_id:eventId})]);
  const qr=qrStateSchema.safeParse(q.data),feed=feedSchema.safeParse(f.data);if(q.error||f.error||!qr.success||!feed.success)return null;
- await Promise.all(feed.data.records.map(async r=>{r.photo=null;if(r.avatar_path){const {data}=await c.storage.from("avatars").createSignedUrl(r.avatar_path,600);r.photo=data?.signedUrl??null;}}));
+ const paths=feed.data.records.flatMap(r=>r.avatar_path?[r.avatar_path]:[]);
+ const signed=paths.length?await c.storage.from("avatars").createSignedUrls(paths,600):null;
+ const photos=new Map(signed?.data?.map(p=>[p.path,p.signedUrl])??[]);
+ feed.data.records.forEach(r=>{r.photo=r.avatar_path?photos.get(r.avatar_path)??null:null;});
  return {qr:qr.data,feed:feed.data};
 }
 export async function submitScan(token:string,device:string,expected:string|null){

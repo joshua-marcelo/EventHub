@@ -53,7 +53,8 @@ export default function PrivacyPage() {
         <h2 className="text-base font-semibold">How long we keep it</h2>
         <p>
           Retention periods will be confirmed by the data controller. Technical device information used to
-          detect shared-device check-ins is deleted after the event.
+          detect shared-device check-ins is hashed per event and deleted 30 days after completion or cancellation.
+          Organizer access to registrant profiles and photos ends after 30 days.
         </p>
 
         <h2 className="text-base font-semibold">Your rights</h2>

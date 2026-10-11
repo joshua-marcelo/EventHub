@@ -19,7 +19,7 @@ export function AttendanceDisplay({id,initial,origin}:{id:string;initial:Attenda
   return()=>{alive=false;clearInterval(poll);clearInterval(clock);void c.removeChannel(channel);};
  },[id]);
  const serverNow=now+offset;
- const token=state.qr.tokens.findLast(t=>Date.parse(t.valid_from)<=serverNow&&serverNow<Date.parse(t.valid_until));
+ const token=[...state.qr.tokens].reverse().find(t=>Date.parse(t.valid_from)<=serverNow&&serverNow<Date.parse(t.valid_until));
  const open=state.qr.closes_at!==null&&serverNow<Date.parse(state.qr.closes_at);
  const value=open&&token?`${origin}/scan?t=${token.token}`:"";
  useEffect(()=>{let alive=true;if(value)void QRCode.toDataURL(value,{width:640,margin:4,errorCorrectionLevel:"M"}).then(data=>{if(alive)setQr({value,data});});return()=>{alive=false;};},[value]);

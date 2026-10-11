@@ -855,6 +855,21 @@ export type Database = {
         Returns: string
       }
       delete_event_draft: { Args: { p_id: string }; Returns: string }
+      export_event_report: {
+        Args: { p_event_id: string }
+        Returns: {
+          attendance_status: string
+          certificate_number: string
+          college: string
+          name: string
+          program: string
+          registration_status: string
+          student_id: string
+          time_in_at: string
+          time_out_at: string
+          year_level: number
+        }[]
+      }
       get_attendance_feed: { Args: { p_event_id: string }; Returns: Json }
       get_attendance_qr: { Args: { p_event_id: string }; Returns: Json }
       get_certificate_eligibility: {
@@ -862,6 +877,7 @@ export type Database = {
         Returns: Json
       }
       get_event_by_invite_code: { Args: { p_code: string }; Returns: string }
+      get_event_report: { Args: { p_event_id: string }; Returns: Json }
       get_public_event_preview: {
         Args: { p_event_id: string }
         Returns: {

@@ -43,7 +43,9 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
-    url.searchParams.set("next", `${pathname}${search}`);
+    const nextSearch = new URLSearchParams(search);
+    if (pathname === "/scan") nextSearch.delete("t");
+    url.searchParams.set("next", `${pathname}${nextSearch.size ? "?" + nextSearch.toString() : ""}`);
     return redirectWithCookies(url, response);
   }
 
