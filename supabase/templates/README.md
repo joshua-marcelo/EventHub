@@ -1,0 +1,17 @@
+# EventHub authentication email setup (development)
+
+Target project: **ldhpbfujqnyovovabvcg**. Local files and `config.toml` do not update hosted Auth settings. The installed Supabase MCP has no Auth configuration/template update tool.
+
+The original reset page required a cookie session but never exchanged the PKCE `code` returned by the hosted email link. Auth flow records confirmed an issued recovery code that the app had not exchanged. The missing session was incorrectly displayed as an expired link; increasing OTP expiry would not fix it.
+
+1. Open [Authentication → URL Configuration](https://supabase.com/dashboard/project/ldhpbfujqnyovovabvcg/auth/url-configuration). Set **Site URL** to `http://localhost:3000`. Ensure **Redirect URLs** includes `http://localhost:3000/**`; preserve other approved entries. Save. Run EventHub on port 3000 when opening these emails. A phone's `localhost` points to the phone, so use the same computer for local testing.
+2. Open [Authentication → Email Templates](https://supabase.com/dashboard/project/ldhpbfujqnyovovabvcg/auth/templates) (Authentication → Emails → Templates in the newer dashboard).
+   - **Confirm signup**: subject `Confirm your EventHub account`; paste the entire `confirmation.html` into the HTML body; save.
+   - **Reset password**: subject `Reset your EventHub password`; paste the entire `recovery.html` into the HTML body; save.
+3. Under **Authentication → Sign In / Providers → Email**, keep email confirmation enabled and **Email OTP Expiration** at **3600 seconds**. The templates say 1 hour. Do not extend expiry to fix callback problems.
+4. If a custom mail provider rewrites/tracks links, disable click tracking for these authentication emails. No externally hosted fonts or images are required.
+5. Request a **new** reset email from `/forgot-password` after saving. Open it once, enter and confirm a new password, save, then sign out and sign in using the new password. Opening the updated email link only displays the form; submission verifies the single-use token server-side. Reopening a used link and submitting shows **Request a new link**. Never paste real links or tokens into logs, issues, or Git.
+
+The recovery CTA must be `{{ .SiteURL }}/reset-password#token_hash={{ .TokenHash }}&type=recovery` (HTML uses `&amp;`). The fragment is not sent in a GET or Referer. Older EventHub `/auth/confirm?...&type=recovery` links are forwarded to the same form without verification. Older Supabase `ConfirmationURL` redirects are supported through PKCE code exchange or validated recovery session fragments, but Supabase can still consume those links before EventHub receives them. Apply the new template to protect against GET-only email scanners.
+
+Targeted checks: `npm test -- lib/auth/recovery.test.ts lib/auth/recovery-actions.test.ts app/auth/confirm/route.test.ts lib/auth/redirect.test.ts lib/validation/validation.test.ts`. For live checks, verify the development project, apply `supabase/tests/email-recovery-fixtures.sql`, build/start the app, run `node --env-file=.env.local scripts/email-recovery-check.mjs http://localhost:3100`, and always apply `supabase/tests/email-recovery-cleanup.sql`. These disposable Auth fixtures test fresh, expired and reused links plus sign-in with the changed password; inbox delivery remains a manual dashboard test.

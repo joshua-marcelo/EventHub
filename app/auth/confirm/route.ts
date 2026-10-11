@@ -21,6 +21,17 @@ export async function GET(request: NextRequest) {
   const isRecovery = type === "recovery";
 
   let reason = "link_invalid";
+
+  // Older EventHub recovery emails still reach this route. Do not spend their token on
+  // a scanner/prefetch GET: the reset form verifies it on password submission instead.
+  if (tokenHash && isRecovery) {
+    const destination = new URL("/reset-password", origin);
+    destination.hash = new URLSearchParams({ token_hash: tokenHash, type: "recovery" }).toString();
+    const response = NextResponse.redirect(destination);
+    response.headers.set("Cache-Control", "no-store");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    return response;
+  }
   if (tokenHash && type) {
     const supabase = await createClient();
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });

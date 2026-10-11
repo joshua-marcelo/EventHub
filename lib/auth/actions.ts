@@ -7,6 +7,7 @@ import { getAppOrigin } from "@/lib/app-origin";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { readPendingEmail, rememberPendingEmail } from "@/lib/auth/pending-email";
 import { DEFAULT_AFTER_LOGIN, safeNextPath } from "@/lib/auth/redirect";
+import { type RecoveryCredential, recoveryCredentialSchema } from "@/lib/auth/recovery";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { defaultDashboard } from "@/lib/navigation";
@@ -122,20 +123,36 @@ export async function requestPasswordReset(
   return { ok: true, message: "If an account exists for this address, we sent a link to reset the password." };
 }
 
-export async function updatePassword(input: ResetPasswordInput): Promise<ActionResult> {
+export async function updatePassword(input: ResetPasswordInput, recovery?: RecoveryCredential): Promise<ActionResult & { recoveryVerified?: boolean }> {
   const parsed = resetPasswordSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: "Check the highlighted fields.", fieldErrors: fieldErrorsFrom(parsed.error.issues) };
   }
 
   const supabase = await createClient();
+  // Consume the single-use link only on an explicit password submission, never on a GET.
+  if (recovery !== undefined) {
+    const credential = recoveryCredentialSchema.safeParse(recovery);
+    if (!credential.success) {
+      return { ok: false, error: "This reset link is not valid. Request a new one.", code: "link_invalid" };
+    }
+    const value = credential.data;
+    const { error } = value.kind === "token_hash"
+      ? await supabase.auth.verifyOtp({ type: "recovery", token_hash: value.tokenHash })
+      : value.kind === "code"
+        ? await supabase.auth.exchangeCodeForSession(value.code, value.flowId ? { flowId: value.flowId } : undefined)
+        : await supabase.auth.setSession({ access_token: value.accessToken, refresh_token: value.refreshToken });
+    if (error) {
+      return { ok: false, error: "This reset link has expired or was already used. Request a new one.", code: "link_invalid" };
+    }
+  }
   const { data } = await supabase.auth.getClaims();
   if (!data?.claims?.sub) {
     return { ok: false, error: "This reset link is no longer valid. Request a new one.", code: "session_not_found" };
   }
 
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
-  if (error) return { ok: false, error: authErrorMessage(error.code), code: error.code };
+  if (error) return { ok: false, error: authErrorMessage(error.code), code: error.code, recoveryVerified: recovery !== undefined };
 
   // P-05: end every other session, e.g. someone who knew the old password.
   await supabase.auth.signOut({ scope: "others" });
