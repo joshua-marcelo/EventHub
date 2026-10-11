@@ -109,7 +109,7 @@ Core principles:
 3. `/signup/check-email` page: "We sent a confirmation link to {email}." with **Resend email** (cooldown 60 s, CAPTCHA) and "Wrong address? Sign up again."
 4. The user clicks the link → `/auth/confirm?token_hash=…&type=email&next=/onboarding` → server verifies the token → session created **on the device where the link was opened** → redirect to onboarding with a "Email confirmed" toast.
    **Return path (A1):** when sign-in or sign-up started from a page that asked for it (for example Register on an event opened from a registration QR), the original same-origin path is carried as `next` through sign-up (`emailRedirectTo`), resend, the confirmation link and onboarding: `/auth/confirm?…&next=/onboarding?next=/events/{id}` → onboarding → `/events/{id}`. The link carries it, so this also works when the email is opened on another device. Every hop re-validates `next` as a same-origin relative path.
-5. **Expired or already-used link** → `/auth/error?reason=link_expired` with an email field and **Resend confirmation**. Link validity: Supabase `otp_expiry`, default 1 hour; set to 24 hours.
+5. **Expired or already-used link** → `/auth/error?reason=link_expired` with an email field and **Resend confirmation**. Link validity: Supabase `otp_expiry` = **3600 s (1 hour)**, the Supabase default (P-03, changed 2026-10-11; D-021).
 6. **Signing in before confirming** → Supabase returns "Email not confirmed" → the login form shows "Confirm your email first" with **Resend confirmation**.
 7. Unconfirmed accounts cannot obtain a session, so they cannot reach any app page or call any RPC. **[DEFERRED]** A scheduled purge of unconfirmed accounts older than 7 days is optional hygiene for Phase 12; it is not needed for correctness because unconfirmed accounts cannot log in or claim a student ID.
 
@@ -1106,7 +1106,7 @@ supabase/ migrations/, seed.sql, tests/
 |---|---|---|
 | P-01 | Cloudflare Turnstile CAPTCHA (project-wide: sign-up, sign-in, resend, recovery) | Approved. Test keys in development; production keys at deployment (K-10). |
 | P-02 | Password policy: ≥ 8 characters, letters + digits | Approved |
-| P-03 | Confirmation/recovery link validity 24 h | Approved |
+| P-03 | Confirmation/recovery link validity | Approved as 24 h; **changed to 1 h (3600 s)** on 2026-10-11 (D-021) |
 | P-04 | Purge unconfirmed accounts after 7 days | **Deferred** (optional Phase 12 hygiene) |
 | P-05 | Sign out other sessions after password reset | Approved |
 | P-06 | Privacy consent recorded in onboarding (`privacy_consented_at`, version) | Approved |
@@ -1210,7 +1210,7 @@ Consistency-review fixes approved with Revision 2: no free-text reasons on atten
 | Confirm email | On | On |
 | SMTP | Built-in sender (team addresses only) or a team-owned sandbox | **Client-owned custom SMTP (K-01)** |
 | Email rate limit | Default | Raised from Supabase's initial 30/hour to match expected sign-ups |
-| OTP/link expiry | 24 h | 24 h |
+| OTP/link expiry | 3600 s (1 h) | 3600 s (1 h) |
 | Email templates | `token_hash` links to `/auth/confirm` (`type=email` / `type=recovery`) | same |
 | Anonymous sign-ins | **Off** (D-019) | **Off** |
 | CAPTCHA | Turnstile test keys | Turnstile production keys (K-10) |

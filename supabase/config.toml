@@ -184,7 +184,8 @@ enable_manual_linking = false
 minimum_password_length = 8
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
+# EventHub: letters and digits (P-02).
+password_requirements = "letters_digits"
 
 # Configure passkey sign-ins.
 # [auth.passkey]
@@ -234,8 +235,8 @@ max_frequency = "1s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
-# EventHub: 24 hours for confirmation and recovery links (P-03).
-otp_expiry = 86400
+# EventHub: 1 hour for confirmation and recovery links (P-03, D-021). Do not raise to 24 hours.
+otp_expiry = 3600
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]
@@ -246,6 +247,15 @@ otp_expiry = 86400
 # pass = "env(SENDGRID_API_KEY)"
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
+
+# EventHub (Phase 2): token_hash links to /auth/confirm (SYSTEM_SPEC §3.1, §3.3).
+[auth.email.template.confirmation]
+subject = "Confirm your EventHub account"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset your EventHub password"
+content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

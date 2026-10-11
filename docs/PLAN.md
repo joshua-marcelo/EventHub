@@ -2,7 +2,7 @@
 
 Companion to [SYSTEM_SPEC.md](./SYSTEM_SPEC.md). The spec defines *what*; this plan defines *in what order* and *how we know each step is done*. Section references like "§9.3" point to the spec.
 
-Status: **REVISION 2 — APPROVED (2026-10-11).** Phases 0 and 1 are complete (built from Revision 1). Revision 2 adds Phase 1b and revises Phases 2–12 after the 2026-10-11 design review (DECISIONS.md D-009 – D-016). Phase 1b is complete (2026-10-11) except one dashboard action (development Auth settings, D-018); Phase 2 has not started. Decision IDs (P-xx) and client items (K-xx) are listed in spec §20.
+Status: **REVISION 2 — APPROVED (2026-10-11).** Phases 0 and 1 are complete (built from Revision 1). Revision 2 adds Phase 1b and revises Phases 2–12 after the 2026-10-11 design review (DECISIONS.md D-009 – D-016). Phase 1b is complete (2026-10-11). Phase 2 is implemented (2026-10-11); email delivery and dashboard settings are pending (D-022). Phase 3 has not started. Decision IDs (P-xx) and client items (K-xx) are listed in spec §20.
 **Amendment A1 — Event Registration QR Sharing (spec §7.5, P-24 – P-26): APPROVED (2026-10-11)**, with P-26 modified to a limited public preview (D-017). Its tasks are marked **[A1]** in Phases 2, 5, 6, 8 and 12. No new phase, table or column; one read-only public function (`get_public_event_preview`, Phase 6).
 **Amendment A2 — Attendance Display Mode (spec §9.6, P-27 – P-31): APPROVED (2026-10-11).** Phase 8 no longer builds an anonymous station or pairing; the organizer's own session shows the attendance display. Anonymous sign-ins stay disabled (D-019). P-30 (no per-event approval) and P-31 (admin cancellation, D-020) are part of Phase 5.
 
@@ -97,7 +97,7 @@ Goal: a clearly designated development environment and a Phase 1 schema that mat
 ### Environments
 - [x] Record `ldhpbfujqnyovovabvcg` as the **development** project (P-23 reversed) in README and `.env.example` comments. Verified before the migration: 0 auth users, 0 sessions, 0 rows in every table, 0 storage objects.
 - [ ] Optional: CLI access to development (`supabase login`, `supabase link`) so `npm run test:db`/`db:types` work. Not available (no access token); tests and types run through MCP (D-006, D-018).
-- [ ] Development Auth settings (spec §22) in the live project — **team action in the Supabase dashboard** (no tool in this environment can change Auth configuration; D-018): Confirm email **on**; email OTP/link expiry **86400 s** (P-03); anonymous sign-ins **off** (D-019; reverses the earlier Phase 1b instruction); manual linking off. The same values are recorded in `supabase/config.toml`. Email templates and redirect URLs move to Phase 2 step 2, because they depend on the `/auth/confirm` route and the `next` return path built there.
+- [ ] Development Auth settings (spec §22) in the live project — **team action in the Supabase dashboard** (no tool in this environment can change Auth configuration; D-018): Confirm email **on**; email OTP/link expiry **3600 s** (P-03, D-021); anonymous sign-ins **off** (D-019; reverses the earlier Phase 1b instruction); manual linking off. The same values are recorded in `supabase/config.toml`. Email templates and redirect URLs move to Phase 2 step 2, because they depend on the `/auth/confirm` route and the `next` return path built there.
 - [x] No production project exists yet; it is created in Phase 12 (K-08).
 
 ### Corrective migration (development first; spec §12.6)
@@ -130,42 +130,41 @@ Goal: a clearly designated development environment and a Phase 1 schema that mat
 
 Goal: sign up, confirm email, log in/out, resend confirmation, recover password, complete the student profile with photo. Depends on P1b.
 
+**Status: Implemented (2026-10-11); email delivery and dashboard settings pending (D-022).** Code, migration `20261011111054_avatars_storage` and tests are done and verified on development. What remains needs the Supabase dashboard or an SMTP provider, which no tool here can configure.
+
 ### Auth setup order
-1. [ ] Supabase dev configuration from P1b verified in the dashboard (confirm email on, 86400 s link expiry, anonymous sign-ins off — D-018, D-019); (P-01) Turnstile test keys; (P-02) password policy; Site URL and redirect URLs for localhost.
-2. [ ] Email templates (Confirm signup, Reset password) → `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email|recovery&next=…`. Plain, short, no marketing content.
-3. [ ] `lib/supabase/server.ts`, `client.ts`, `proxy.ts` (current `@supabase/ssr` docs).
-4. [ ] `proxy.ts`: refresh session; redirect signed-out users from `(app)` to `/login?next=…`, **except** `/events/{uuid}` (public preview, A1 — the page itself decides what to show); treat an anonymous session as signed out (anonymous sign-ins are disabled, D-019); matcher excludes static assets.
-5. [ ] `lib/auth/dal.ts` (`server-only`): `getCurrentUser()` → `{ id, email, isAnonymous, profile, isAdmin, organizerStatus }`; `requireUser({ allowIncomplete })` (refuses anonymous; incomplete → `/onboarding`); `requireAdmin()`; `requireOrganizer({ allowInactive })`. Cache Components auth pattern.
-6. [ ] Route handlers: `/auth/confirm` (`verifyOtp` with `token_hash`, types `email` and `recovery`; same-origin `next`), `/auth/signout` (POST). `/auth/error` page with resend form.
-7. [ ] Pages in `(auth)`:
-   - `signup`: first name, last name, email, password, CAPTCHA → `signUp` → `/signup/check-email`.
-   - **[A1]** Return path: `next` (same-origin only) is kept from login → sign-up → `signUp({ options: { emailRedirectTo } })` → resend → confirmation link → `/onboarding?next=…` → destination. Confirm the exact template variable for the redirect against the current Supabase SSR docs before writing the template. The login page shows "Log in or create an account to view this event" when `next` is an event path.
-   - `signup/check-email`: address shown, **Resend** (`auth.resend({ type: 'signup' })`, 60 s cooldown, CAPTCHA), "Wrong address? Sign up again".
-   - `login`: handles "Email not confirmed" with inline resend; preserves `next`.
-   - **Sign out of all devices** (P-29) on the profile page: `signOut({ scope: 'global' })` with a confirmation dialog.
-   - `forgot-password`: generic response; `reset-password`: `updateUser({ password })` then (P-05) `signOut({ scope: 'others' })`.
-   - Confirmation success → `/onboarding` with toast; link opened on another device → that device is signed in; original device shows "Already confirmed? Log in".
-8. [ ] `/privacy` page (placeholder controller/contact until **[CLIENT K-06]**).
-9. [ ] `/onboarding`: consent (P-06) → student ID, college → program cascade, year, optional middle name/suffix → photo (client resize 512 px, upload to own folder, set `avatar_path`, delete old). Student-ID-taken message with admin contact. **[A1]** On completion, go to `next` if present, else the dashboard.
-10. [ ] Storage bucket `avatars` (private, 2 MB, jpeg/png/webp) + policies (owner folder write; owner read; admin read). The organizer read policy comes in P6.
-11. [ ] `lib/validation/auth.ts`, `lib/validation/profile.ts` shared by forms and Server Actions.
-12. [ ] Dev-only lookup rows inserted directly in the development database (not in migrations) so onboarding can be tested before admins enter real lists.
+1. [ ] **Team action in the Supabase dashboard (development):** paste the two email templates; Site URL `http://localhost:3000` and redirect URL `http://localhost:3000/**`; email OTP expiry 3600 s (D-021); password policy "letters and digits", minimum 8 (P-02); CAPTCHA only once Turnstile keys exist (P-01, K-10). Verified from the public settings endpoint on 2026-10-11: confirm email **on**, anonymous sign-ins **off**, sign-ups open.
+2. [x] Email templates in `supabase/templates/confirmation.html` and `recovery.html` (links to `/auth/confirm?token_hash=…&type=email|recovery`; confirmation passes `next={{ .RedirectTo }}`), referenced from `supabase/config.toml`.
+3. [x] `lib/supabase/server.ts`, `client.ts`, `proxy.ts` (current `@supabase/ssr` pattern, `getClaims()`).
+4. [x] `proxy.ts`: refresh session; signed-out users → `/login?next=…` except public paths and `/events/{uuid}` (A1); anonymous sessions treated as signed out; signed-in users on `/login` or `/signup` → `/dashboard`.
+5. [x] `lib/auth/dal.ts`: `getCurrentUser()`, `requireUser({ allowIncomplete, next })`, `requireAdmin()`, `requireOrganizer({ allowInactive })`; session reads inside `<Suspense>`.
+6. [x] Route handlers `/auth/confirm` (types `email`, `signup`, `recovery`; same-origin `next`; recovery always → `/reset-password`) and `/auth/signout` (POST, 303); `/auth/error` page with resend.
+7. [x] Pages: `signup`; `signup/check-email` (masked address from an httpOnly cookie, resend with 60 s cooldown); `login` (email-not-confirmed with inline resend, event-aware wording, `next` kept); `forgot-password` (generic answer); `reset-password` (P-05 sign out others); **Sign out of all devices** on `/profile` (P-29). **[A1]** `next` travels through sign-up (`emailRedirectTo`), resend, the email link and onboarding.
+8. [x] `/privacy` draft notice (controller, contact and retention pending **[CLIENT K-06, K-07]**), version `2026-10-draft`.
+9. [x] `/onboarding` (consent → details with college → program cascade → photo resized to 512 px, uploaded to the own folder, old photo deleted) and `/profile`; student-ID-taken message with admin hint; complete profile → `next` or dashboard. Minimal `/dashboard` placeholder and `(app)` frame until Phase 3.
+10. [x] Storage bucket `avatars` (private, 2 MB, jpeg/png/webp) + owner insert/read/delete and admin read policies.
+11. [x] `lib/validation/auth.ts`, `lib/validation/profile.ts` shared by forms and Server Actions.
+12. [x] Dev-only lookup rows (`DEV-A`, `DEV-B`, three programs, labelled "test data") inserted directly in the development database.
+13. [x] Turnstile widget (P-01) renders only when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set (documented in `.env.example`).
 
 ### Tests
-- [ ] Unit: auth and profile Zod schemas; `next` sanitizer.
-- [ ] SQL: `accept_privacy_notice` only for self; `is_complete` false without consent/program/photo.
+- [x] Unit (Vitest): auth/profile schemas, `next` sanitizer, public-path rules, error messages — 48/48 including Phase 0.
+- [x] SQL: `003_avatars_storage` 10/10 (bucket settings, own-folder upload, no cross-user read, admin read, anonymous and signed-out denied). Consent and `is_complete` are covered by `001`/`002` (Phase 1b).
+- [x] Live route check `scripts/phase2-auth-check.mjs` against a production build: 39/39.
+- [x] Live Server Action check `scripts/phase2-actions-check.mjs` against a production build: 24/24.
 
 **Verification**
-- [ ] Sign up → email arrives (team address on built-in SMTP, or a team-owned SMTP sandbox) → link → signed in → onboarding → dashboard; logout → login.
-- [ ] Login before confirming → "Email not confirmed" + resend works; resend cooldown enforced.
-- [ ] Expired/used link → `/auth/error` → resend → new link works.
-- [ ] Sign-up with an existing email shows the same "check your email" page and reveals nothing.
-- [ ] Forgot/reset works; other sessions signed out (P-05).
-- [ ] `/dashboard` logged-out → `/login?next=/dashboard` and back; `?next=https://evil.com` ignored.
-- [ ] **[A1]** New account started from `/login?next=/some/path`: sign up → confirm (also on a second device) → onboarding → lands on `/some/path`. `next=//evil.com`, `next=https://…` and `next=/\evil.com` are ignored at every hop.
-- [ ] Anonymous session cannot open `/dashboard`.
-- [ ] Avatar of user A not readable by user B.
-- [ ] Build passes with `cacheComponents`.
+- [ ] Sign up → email arrives → link → onboarding → dashboard. **Blocked:** the built-in Supabase sender only delivers to project-team addresses and was rate-limited during testing; needs SMTP (a team sandbox for development, K-01 for production). The rest of the chain was verified with a simulated link (seeded token hash through the real `/auth/confirm`).
+- [x] Login before confirming → "Email not confirmed" with resend offered (live resend delivery blocked as above).
+- [x] Expired, used or invalid link → `/auth/error` (Supabase reports all three as `otp_expired`; the page says "expired or already used").
+- [ ] Sign-up with an existing email reveals nothing — Supabase behaviour with confirmation on; not observable while the built-in sender is rate-limited.
+- [x] Forgot/reset via recovery link; weak password refused; other sessions signed out (P-05); old password fails, new works.
+- [x] Signed-out `/dashboard` → `/login?next=/dashboard`; off-site `next` ignored at login and at `/auth/confirm`.
+- [x] **[A1]** Confirmation link with `next` lands on that path from a fresh cookie jar (= another device).
+- [x] Anonymous sessions: proxy and DAL treat them as signed out; SQL tests deny them (sign-ins are disabled, so none can be created).
+- [x] Avatar of user A not readable by user B (SQL and Storage API).
+- [x] Build passes with `cacheComponents`.
+- [ ] Visual check of every page in a browser at 360 / 768 / 1280 px — not done (the Chrome automation extension was not connected); do it manually or in Phase 3.
 
 ---
 
