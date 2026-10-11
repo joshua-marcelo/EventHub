@@ -1,29 +1,32 @@
+import Image from "next/image";
 import Link from "next/link";
-
-import { buttonVariants } from "@/components/ui/button";
-
-// Public landing page. The full landing design comes with the Phase 12 polish pass.
+import { Suspense } from "react";
+import { ArrowRight, CalendarDays, ScanLine, Ticket, Award, ArrowUpRight } from "lucide-react";
+import { PublicEventList } from "@/components/landing/event-list";
+export const metadata = { title:"EventHub — Your campus, connected",description:"Discover university events, reserve your place, check in with QR attendance, and keep your achievements." };
+const steps = [
+  {title:"Discover",text:"Find seminars, activities, and gatherings across your university.",icon:CalendarDays},
+  {title:"Register",text:"Reserve your place. Keep events and approvals in one account.",icon:Ticket},
+  {title:"Attend",text:"Scan the organizer’s live QR with your phone to record attendance.",icon:ScanLine},
+  {title:"Get your certificate",text:"Download a verifiable certificate after eligible attendance.",icon:Award},
+];
 export default function Home() {
-  return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-8 px-4 py-16 text-center">
-      <div className="flex max-w-xl flex-col gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">EventHub</h1>
-        <p className="text-muted-foreground">
-          Council events of Wesleyan University–Philippines: register, check in with a QR code, and get verifiable
-          certificates.
-        </p>
-      </div>
-      <div className="flex flex-wrap justify-center gap-3">
-        <Link href="/signup" className={buttonVariants({ size: "lg" })}>
-          Create an account
-        </Link>
-        <Link href="/login" className={buttonVariants({ variant: "outline", size: "lg" })}>
-          Log in
-        </Link>
-      </div>
-      <Link href="/privacy" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-        Privacy notice
-      </Link>
-    </div>
-  );
+  return <div className="landing min-h-svh bg-[#faf9f6] text-slate-900">
+    <a href="#main-content" className="sr-only z-50 rounded bg-white px-4 py-2 focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to content</a>
+    <header className="border-b border-stone-200 bg-white"><nav aria-label="Main navigation" className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-5 gap-y-4 px-5 py-5 sm:px-8">
+      <Link href="/" aria-label="EventHub home"><Image src="/images/eventhub-logo.png" alt="EventHub" width={1880} height={395} priority className="h-auto w-36 sm:w-44" /></Link>
+      <div className="order-3 flex w-full gap-6 border-t border-stone-100 pt-3 text-sm font-medium sm:order-none sm:w-auto sm:border-0 sm:pt-0"><a href="#events" className="hover:text-orange-800">Explore Events</a><a href="#how-it-works" className="hover:text-orange-800">How It Works</a></div>
+      <div className="flex items-center gap-4 text-sm font-semibold"><Link href="/login" className="hover:text-orange-800">Login</Link><Link href="/signup" className="rounded-md bg-slate-900 px-4 py-2.5 text-white hover:bg-slate-700">Sign Up</Link></div>
+    </nav></header>
+    <main id="main-content">
+      <section className="border-b border-stone-200"><div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:px-8 sm:py-20 lg:grid-cols-[1.4fr_1fr] lg:items-center lg:gap-16">
+        <div><p className="mb-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-[.16em] text-slate-600"><span className="h-px w-8 bg-orange-600" aria-hidden="true" />Wesleyan University–Philippines</p><h1 className="max-w-2xl text-4xl font-semibold leading-[1.08] tracking-[-.045em] sm:text-6xl">Good things happen<br />when campus<br /><span className="text-orange-800">comes together.</span></h1><p className="mt-6 max-w-lg text-base leading-relaxed text-slate-600 sm:text-lg">Your next seminar, student activity, or shared milestone. Discover it, save your place, and make it count.</p><div className="mt-8 flex flex-wrap gap-3"><a href="#events" className="inline-flex items-center gap-3 rounded-md bg-orange-800 px-5 py-3 text-sm font-semibold text-white hover:bg-orange-900">Find your next event<ArrowRight className="size-4" aria-hidden="true" /></a><Link href="/signup" className="rounded-md border border-stone-300 bg-white px-5 py-3 text-sm font-semibold hover:border-slate-600">Create an account</Link></div><p className="mt-6 text-xs text-slate-500">Built for university life. From first registration to final certificate.</p></div>
+        <aside className="rounded-xl bg-slate-900 p-7 text-white sm:p-9" aria-label="EventHub for campus life"><div className="flex justify-between border-b border-slate-700 pb-5"><span className="text-xs font-medium uppercase tracking-[.16em] text-orange-300">A place to take part</span><ArrowUpRight className="size-5 text-orange-300" aria-hidden="true" /></div><p className="mt-8 text-3xl font-medium leading-tight tracking-tight sm:text-4xl">Less paperwork.<br />More campus life.</p><p className="mt-5 text-sm leading-relaxed text-slate-300">One place for events you join and moments you organize.</p><div className="mt-9 divide-y divide-slate-700">{[{icon:Ticket,text:"A clear path from invitation to registration"},{icon:ScanLine,text:"Check in with the phone you already carry"},{icon:Award,text:"Keep a record of what you’ve achieved"}].map(item => <p key={item.text} className="flex items-center gap-3 py-4 text-sm"><item.icon className="size-5 shrink-0 text-orange-300" aria-hidden="true" />{item.text}</p>)}</div></aside>
+      </div></section>
+      <section id="events" aria-labelledby="events-title" className="mx-auto max-w-6xl scroll-mt-8 px-5 py-12 sm:px-8 sm:py-16"><div className="mb-7 flex flex-wrap items-end justify-between gap-4"><div><p className="mb-2 text-xs font-semibold uppercase tracking-[.14em] text-orange-800">On the calendar</p><h2 id="events-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">Your next campus moment</h2><p className="mt-2 text-sm text-slate-600">Upcoming public events, straight from university organizers.</p></div><Link href="/events" className="inline-flex items-center gap-2 text-sm font-semibold underline underline-offset-4">Browse all events<ArrowUpRight className="size-4" aria-hidden="true" /></Link></div><Suspense fallback={<p className="border-y border-stone-200 py-8 text-sm text-slate-500" role="status">Loading the campus calendar…</p>}><PublicEventList /></Suspense></section>
+      <section id="how-it-works" aria-labelledby="how-title" className="scroll-mt-8 border-y border-stone-200 bg-white"><div className="mx-auto max-w-6xl px-5 py-12 sm:px-8 sm:py-16"><p className="mb-2 text-xs font-semibold uppercase tracking-[.14em] text-orange-800">How it works</p><h2 id="how-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">Four steps. One connected experience.</h2><ol className="mt-9 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">{steps.map((step,i) => <li key={step.title} className="border-t border-stone-200 pt-5"><div className="mb-5 flex justify-between"><span className="text-sm font-medium text-orange-800">0{i+1}</span><step.icon className="size-5 text-slate-500" aria-hidden="true" /></div><h3 className="text-lg font-semibold">{step.title}</h3><p className="mt-2 text-sm leading-relaxed text-slate-600">{step.text}</p></li>)}</ol></div></section>
+      <section className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-6 px-5 py-12 sm:px-8"><div><h2 className="text-2xl font-semibold tracking-tight">Have something worth bringing people together for?</h2><p className="mt-2 text-sm text-slate-600">Apply as an organizer and put your next event on the calendar.</p></div><Link href="/become-organizer" className="inline-flex items-center gap-3 rounded-md border border-slate-900 px-5 py-3 text-sm font-semibold hover:bg-white">Become an organizer<ArrowRight className="size-4" aria-hidden="true" /></Link></section>
+    </main>
+    <footer className="border-t border-stone-200 bg-white"><div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-5 px-5 py-7 sm:px-8"><div><Image src="/images/eventhub-logo.png" alt="EventHub" width={1880} height={395} className="h-auto w-28" /><p className="mt-3 text-xs text-slate-500">Connecting university events and the people who make them matter.</p></div><nav aria-label="Footer navigation" className="flex flex-wrap gap-5 text-sm text-slate-600"><Link href="/privacy" className="hover:text-orange-800">Privacy notice</Link><Link href="/verify" className="hover:text-orange-800">Verify a certificate</Link><Link href="/login" className="hover:text-orange-800">Login</Link></nav></div></footer>
+  </div>;
 }

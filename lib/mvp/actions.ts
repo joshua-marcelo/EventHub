@@ -27,6 +27,14 @@ function result(code: string | null, error: unknown): ActionResult {
 function refresh() {
   revalidatePath("/", "layout");
 }
+export async function savePoster(id:string,path:string):Promise<ActionResult> {
+  if(!idSchema.safeParse(id).success || !path.startsWith(`${id}/`) || path.length > 250) return result("invalid_input",null);
+  const user = await requireOrganizer(); const client = await createClient();
+  const {data:event} = await client.from("events").select("organizer_id").eq("id",id).maybeSingle();
+  if(event?.organizer_id !== user.id) return result("not_permitted",null);
+  const {data,error} = await client.rpc("set_event_banner",{p_event_id:id,p_path:path});
+  const r = result(data,error); if(r.ok) refresh(); return r;
+}
 
 export async function submitApplication(input: unknown): Promise<ActionResult> {
   const v = applicationSchema.safeParse(input);

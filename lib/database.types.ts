@@ -527,6 +527,18 @@ export type Database = {
           venue: string
         }[]
       }
+      get_upcoming_public_events: {
+        Args: never
+        Returns: {
+          banner_path: string
+          category_name: string
+          id: string
+          registration_state: string
+          starts_at: string
+          title: string
+          venue: string
+        }[]
+      }
       profile_full_name: {
         Args: { p: Database["public"]["Tables"]["profiles"]["Row"] }
         Returns: string
@@ -540,6 +552,10 @@ export type Database = {
       save_event: { Args: { p_id: string; p_values: Json }; Returns: Json }
       save_lookup: {
         Args: { p_id: number; p_kind: string; p_values: Json }
+        Returns: string
+      }
+      set_event_banner: {
+        Args: { p_event_id: string; p_path: string }
         Returns: string
       }
       set_organizer_status: {
