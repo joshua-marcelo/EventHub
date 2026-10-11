@@ -62,9 +62,13 @@ describe("isPublicPath", () => {
   });
 
   it("protects app pages", () => {
-    for (const p of ["/dashboard", "/profile", "/onboarding", "/events", "/events/join", "/events/not-a-uuid", "/organizer", "/admin", "/scan", "/e/ABCD2345"]) {
+    for (const p of ["/dashboard", "/profile", "/onboarding", "/events", "/events/join", "/events/anything/settings", "/organizer", "/admin", "/scan", "/e/ABCD2345"]) {
       expect(isPublicPath(p), p).toBe(false);
     }
+  });
+  it("allows malformed event IDs to render the same neutral public response", () => {
+    expect(isPublicPath("/events/not-a-uuid")).toBe(true);
+    expect(isPublicPath("/events/unknown")).toBe(true);
   });
 });
 

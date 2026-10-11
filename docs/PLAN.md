@@ -1,5 +1,18 @@
 # EventHub — Implementation Plan
 
+**Condensed MVP scope approved (2026-10-11).** Preserve completed Phases 1b–3.
+The three stages below supersede the remaining Phase 4–12 task lists, which remain as reference:
+
+1. Organizer applications/admin approval, event creation/editing/publishing, discovery/registration, static registration QR and links — implemented; see [MVP_STAGE1_CHECKPOINT.md](./MVP_STAGE1_CHECKPOINT.md).
+2. Participant self-scan, rotating attendance QR, realtime organizer display — awaiting approval; not started.
+3. Automated certificates, basic per-event reports, final testing/deployment — awaiting approval; not started.
+
+Defer bulk workflows, ownership-transfer and identity-dispute UI, certificate layout editing,
+cross-event analytics, extra sharing/export formats, rich dashboard widgets and broad polish.
+Authentication, DAL/RPC authorization, RLS, private storage, privacy limits, audit logs and
+database duplicate prevention remain required. Targeted checks per change; final integrated
+release checks once. Phase 2 email/settings and Phase 3 permanent-admin/browser items remain open.
+
 Companion to [SYSTEM_SPEC.md](./SYSTEM_SPEC.md). The spec defines *what*; this plan defines *in what order* and *how we know each step is done*. Section references like "§9.3" point to the spec.
 
 Status: **REVISION 2 — APPROVED (2026-10-11).** Phases 0 and 1 are complete (built from Revision 1). Revision 2 adds Phase 1b and revises Phases 2–12 after the 2026-10-11 design review (DECISIONS.md D-009 – D-016). Phase 1b is complete (2026-10-11). Phase 2 is implemented (2026-10-11); email delivery and dashboard settings are pending (D-022). Phase 3 code is implemented (2026-10-11); permanent admin provisioning and browser verification remain pending (D-023). Decision IDs (P-xx) and client items (K-xx) are listed in spec §20.

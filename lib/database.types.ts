@@ -103,6 +103,273 @@ export type Database = {
         }
         Relationships: []
       }
+      event_registrations: {
+        Row: {
+          cancelled_at: string | null
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_reason: string | null
+          event_id: string
+          id: string
+          registered_at: string
+          registration_channel: Database["public"]["Enums"]["registration_channel"]
+          status: Database["public"]["Enums"]["registration_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          event_id: string
+          id?: string
+          registered_at?: string
+          registration_channel?: Database["public"]["Enums"]["registration_channel"]
+          status: Database["public"]["Enums"]["registration_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          event_id?: string
+          id?: string
+          registered_at?: string
+          registration_channel?: Database["public"]["Enums"]["registration_channel"]
+          status?: Database["public"]["Enums"]["registration_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_registrations_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registrations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registrations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          allow_onsite_registration: boolean
+          approval_mode: Database["public"]["Enums"]["approval_mode"]
+          attendance_opens_minutes_before: number
+          attendance_policy: Database["public"]["Enums"]["attendance_policy"]
+          banner_path: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          capacity: number | null
+          category_id: number | null
+          certificates_enabled: boolean
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          ends_at: string | null
+          host_college_id: number | null
+          id: string
+          invite_code: string
+          organizer_id: string
+          published_at: string | null
+          registration_closes_at: string | null
+          registration_opens_at: string | null
+          search: unknown
+          starts_at: string | null
+          status: Database["public"]["Enums"]["event_status"]
+          title: string
+          updated_at: string
+          venue: string | null
+          visibility: Database["public"]["Enums"]["event_visibility"]
+        }
+        Insert: {
+          allow_onsite_registration?: boolean
+          approval_mode?: Database["public"]["Enums"]["approval_mode"]
+          attendance_opens_minutes_before?: number
+          attendance_policy?: Database["public"]["Enums"]["attendance_policy"]
+          banner_path?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          capacity?: number | null
+          category_id?: number | null
+          certificates_enabled?: boolean
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          host_college_id?: number | null
+          id?: string
+          invite_code?: string
+          organizer_id: string
+          published_at?: string | null
+          registration_closes_at?: string | null
+          registration_opens_at?: string | null
+          search?: unknown
+          starts_at?: string | null
+          status?: Database["public"]["Enums"]["event_status"]
+          title: string
+          updated_at?: string
+          venue?: string | null
+          visibility?: Database["public"]["Enums"]["event_visibility"]
+        }
+        Update: {
+          allow_onsite_registration?: boolean
+          approval_mode?: Database["public"]["Enums"]["approval_mode"]
+          attendance_opens_minutes_before?: number
+          attendance_policy?: Database["public"]["Enums"]["attendance_policy"]
+          banner_path?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          capacity?: number | null
+          category_id?: number | null
+          certificates_enabled?: boolean
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          host_college_id?: number | null
+          id?: string
+          invite_code?: string
+          organizer_id?: string
+          published_at?: string | null
+          registration_closes_at?: string | null
+          registration_opens_at?: string | null
+          search?: unknown
+          starts_at?: string | null
+          status?: Database["public"]["Enums"]["event_status"]
+          title?: string
+          updated_at?: string
+          venue?: string | null
+          visibility?: Database["public"]["Enums"]["event_visibility"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "event_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_host_college_id_fkey"
+            columns: ["host_college_id"]
+            isOneToOne: false
+            referencedRelation: "colleges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizer_applications: {
+        Row: {
+          applicant_id: string
+          contact_number: string
+          created_at: string
+          id: string
+          organization_name: string
+          position_title: string
+          privacy_consented_at: string
+          privacy_notice_version: string
+          proof_document_path: string
+          reason: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["application_status"]
+          submitted_at: string
+          supporting_document_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          applicant_id: string
+          contact_number: string
+          created_at?: string
+          id?: string
+          organization_name: string
+          position_title: string
+          privacy_consented_at?: string
+          privacy_notice_version: string
+          proof_document_path: string
+          reason: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["application_status"]
+          submitted_at?: string
+          supporting_document_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          applicant_id?: string
+          contact_number?: string
+          created_at?: string
+          id?: string
+          organization_name?: string
+          position_title?: string
+          privacy_consented_at?: string
+          privacy_notice_version?: string
+          proof_document_path?: string
+          reason?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["application_status"]
+          submitted_at?: string
+          supporting_document_path?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organizer_applications_applicant_id_fkey"
+            columns: ["applicant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organizer_applications_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_path: string | null
@@ -234,12 +501,54 @@ export type Database = {
     }
     Functions: {
       accept_privacy_notice: { Args: { p_version: string }; Returns: string }
+      cancel_event: {
+        Args: { p_id: string; p_reason: string }
+        Returns: string
+      }
+      cancel_registration: { Args: { p_event_id: string }; Returns: string }
+      decide_registration: {
+        Args: { p_decision: string; p_id: string; p_reason?: string }
+        Returns: string
+      }
+      delete_event_draft: { Args: { p_id: string }; Returns: string }
+      get_event_by_invite_code: { Args: { p_code: string }; Returns: string }
+      get_public_event_preview: {
+        Args: { p_event_id: string }
+        Returns: {
+          banner_path: string
+          category_name: string
+          description: string
+          ends_at: string
+          host_college_name: string
+          organization_name: string
+          starts_at: string
+          status_label: string
+          title: string
+          venue: string
+        }[]
+      }
       profile_full_name: {
         Args: { p: Database["public"]["Tables"]["profiles"]["Row"] }
         Returns: string
       }
+      publish_event: { Args: { p_id: string }; Returns: string }
+      register_for_event: { Args: { p_event_id: string }; Returns: string }
+      review_organizer_application: {
+        Args: { p_decision: string; p_id: string; p_reason?: string }
+        Returns: string
+      }
+      save_event: { Args: { p_id: string; p_values: Json }; Returns: Json }
       save_lookup: {
         Args: { p_id: number; p_kind: string; p_values: Json }
+        Returns: string
+      }
+      set_organizer_status: {
+        Args: { p_reason?: string; p_status: string; p_user_id: string }
+        Returns: string
+      }
+      submit_organizer_application: { Args: { p_values: Json }; Returns: Json }
+      withdraw_organizer_application: {
+        Args: { p_id: string }
         Returns: string
       }
     }

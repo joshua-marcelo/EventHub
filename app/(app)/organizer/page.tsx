@@ -10,5 +10,5 @@ export const metadata = { title: "Organizer dashboard" };
 export default function Page() { return <Suspense fallback={<PageSkeleton />}><Dashboard /></Suspense>; }
 async function Dashboard() {
   const user = await requireOrganizer({ allowInactive: true });
-  return <div className="space-y-6"><PageHeader title="Organizer dashboard" description="Bring your campus together. Manage events, attendance and certificates." action={<StatusBadge status={user.organizerStatus} />} /><EmptyState title="Your events will appear here" description="Event management will be available soon. Your participant dashboard remains available from the dashboard switcher." action={<Link href="/organizer/events" className={buttonVariants({ variant: "outline" })}>My Organized Events</Link>} /></div>;
+  return <div className="space-y-6"><PageHeader title="Organizer dashboard" description="Create events and manage participant registrations." action={<StatusBadge status={user.organizerStatus} />} /><EmptyState title="Manage your campus events" description="Open an event to edit, publish, share its registration QR, or approve participants." action={<Link href="/organizer/events" className={buttonVariants({ variant: "outline" })}>My Organized Events</Link>} /></div>;
 }

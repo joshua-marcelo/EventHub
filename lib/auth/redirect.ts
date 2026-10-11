@@ -70,7 +70,9 @@ const PUBLIC_EXACT = new Set([
 ]);
 const PUBLIC_PREFIXES = ["/auth/", "/verify/"];
 // Canonical registration URL with the limited public preview (SYSTEM_SPEC §7.5, P-26).
-const EVENT_PREVIEW = /^\/events\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Malformed IDs also reach the neutral preview; UUID validation stays in the page.
+// The invite-entry form remains authenticated.
+const EVENT_PREVIEW = /^\/events\/(?!join$)[^/]+$/i;
 
 /** Paths reachable without a session. Everything else requires a signed-in permanent user. */
 export function isPublicPath(pathname: string): boolean {

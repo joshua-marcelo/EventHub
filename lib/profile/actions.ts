@@ -59,7 +59,7 @@ export async function saveProfile(input: ProfileFormInput): Promise<ActionResult
       return { ok: false, error: "Check the highlighted fields.", fieldErrors: { programId: "Select a program from your college." } };
     }
     if (error.code === "23514") {
-      return { ok: false, error: "Some details are not in the expected format. Check the fields and try again." };
+      return { ok: false, error: error.message.includes("locked by an approved event registration") ? "Your student ID and photo are locked while an approved event registration is active. Other profile details remain editable." : "Some details are not in the expected format. Check the fields and try again." };
     }
     return { ok: false, error: "Your profile could not be saved. Try again.", code: error.code };
   }
@@ -80,7 +80,7 @@ export async function setAvatar(path: string): Promise<ActionResult> {
   const { error } = await supabase.from("profiles").update({ avatar_path: path }).eq("id", user.id);
   if (error) {
     await supabase.storage.from("avatars").remove([path]);
-    return { ok: false, error: "Your photo could not be saved. Try again.", code: error.code };
+    return { ok: false, error: error.message.includes("locked by an approved event registration") ? "Your photo is locked while an approved event registration is active." : "Your photo could not be saved. Try again.", code: error.code };
   }
   if (previous && previous !== path) {
     await supabase.storage.from("avatars").remove([previous]);
