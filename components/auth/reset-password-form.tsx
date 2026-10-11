@@ -11,7 +11,7 @@ import { FormAlert } from "@/components/forms/form-alert";
 import { TextField } from "@/components/forms/text-field";
 import { Button } from "@/components/ui/button";
 import { updatePassword } from "@/lib/auth/actions";
-import { type RecoveryCredential, readRecoveryLink, recoveryLinkPresent } from "@/lib/auth/recovery";
+import { type RecoveryCredential, readRecoveryLink, recoveryLinkError, recoveryLinkPresent } from "@/lib/auth/recovery";
 import { type ResetPasswordInput, resetPasswordSchema } from "@/lib/validation/auth";
 
 export function ResetPasswordForm({ hasSession = false }: { hasSession?: boolean }) {
@@ -36,6 +36,7 @@ export function ResetPasswordForm({ hasSession = false }: { hasSession?: boolean
       const linkPresent = recoveryLinkPresent(url);
       if (linkPresent) window.history.replaceState(window.history.state, "", url.pathname);
       setInvalid(linkPresent ? !value : !hasSession);
+      setFormError(recoveryLinkError(url));
       setReady(true);
     };
     if (!initialized.current) {

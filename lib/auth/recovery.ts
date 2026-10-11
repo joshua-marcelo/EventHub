@@ -27,6 +27,20 @@ export function readRecoveryLink(url: URL): RecoveryCredential | null {
   return null;
 }
 
+/**
+ * Supabase's hosted /verify redirects here with `#error_code=…` when it rejects a link. It
+ * reports `otp_expired` both for expired tokens and for links superseded by a newer request
+ * (each request replaces the previous token) or already opened once.
+ */
+export function recoveryLinkError(url: URL): string | null {
+  const fragment = new URLSearchParams(url.hash.slice(1));
+  const code = fragment.get("error_code") ?? url.searchParams.get("error_code");
+  if (!fragment.has("error") && !url.searchParams.has("error")) return null;
+  return code === "otp_expired"
+    ? "This reset link was already used, expired, or replaced by a newer request. Open the link in your most recent EventHub email, or request a new one."
+    : "This reset link is not valid. Request a new one.";
+}
+
 export function recoveryLinkPresent(url: URL): boolean {
   const fragment = new URLSearchParams(url.hash.slice(1));
   return ["token_hash", "code", "error"].some((key) => url.searchParams.has(key)) ||

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { readRecoveryLink, recoveryCredentialSchema, recoveryLinkPresent } from "./recovery";
+import { readRecoveryLink, recoveryCredentialSchema, recoveryLinkError, recoveryLinkPresent } from "./recovery";
 
 describe("recovery link compatibility", () => {
   it("reads EventHub fragment links without putting credentials in the request URL", () => {
@@ -28,6 +28,13 @@ describe("recovery link compatibility", () => {
   it("recognizes invalid link data even when an existing session is present", () => {
     expect(recoveryLinkPresent(new URL("http://localhost:3000/reset-password#error=access_denied"))).toBe(true);
     expect(recoveryLinkPresent(new URL("http://localhost:3000/reset-password"))).toBe(false);
+  });
+  it("explains stale or superseded links rejected by Supabase", () => {
+    const stale = new URL("http://localhost:3000/reset-password#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired");
+    expect(readRecoveryLink(stale)).toBeNull();
+    expect(recoveryLinkError(stale)).toMatch(/most recent EventHub email/);
+    expect(recoveryLinkError(new URL("http://localhost:3000/reset-password?error=server_error"))).toMatch(/not valid/);
+    expect(recoveryLinkError(new URL("http://localhost:3000/reset-password#token_hash=test&type=recovery"))).toBeNull();
   });
   it("rejects malformed and excessive server action credentials", () => {
     for (const value of [null, {}, { kind: "token_hash", tokenHash: "" }, { kind: "session", accessToken: "a" }, { kind: "code", code: "x".repeat(513) }, { kind: "token_hash", tokenHash: "test", type: "signup" }]) {

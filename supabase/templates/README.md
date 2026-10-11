@@ -4,6 +4,8 @@ Target project: **ldhpbfujqnyovovabvcg**. Local files and `config.toml` do not u
 
 The original reset page required a cookie session but never exchanged the PKCE `code` returned by the hosted email link. Auth flow records confirmed an issued recovery code that the app had not exchanged. The missing session was incorrectly displayed as an expired link; increasing OTP expiry would not fix it.
 
+Follow-up (2026-10-12): the hosted project still sent the default templates. Auth logs showed the failing click presented a superseded recovery token (`One-time token not found`) while the newest token stayed unused; each reset request replaces the previous token, and Gmail threads identical default emails, so an older link is easy to open. The reset page now explains `otp_expired` redirects ("open your most recent EventHub email"). Deploying the templates below remains required.
+
 1. Open [Authentication → URL Configuration](https://supabase.com/dashboard/project/ldhpbfujqnyovovabvcg/auth/url-configuration). Set **Site URL** to `http://localhost:3000`. Ensure **Redirect URLs** includes `http://localhost:3000/**`; preserve other approved entries. Save. Run EventHub on port 3000 when opening these emails. A phone's `localhost` points to the phone, so use the same computer for local testing.
 2. Open [Authentication → Email Templates](https://supabase.com/dashboard/project/ldhpbfujqnyovovabvcg/auth/templates) (Authentication → Emails → Templates in the newer dashboard).
    - **Confirm signup**: subject `Confirm your EventHub account`; paste the entire `confirmation.html` into the HTML body; save.
