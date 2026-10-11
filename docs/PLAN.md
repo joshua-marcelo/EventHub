@@ -2,7 +2,7 @@
 
 Companion to [SYSTEM_SPEC.md](./SYSTEM_SPEC.md). The spec defines *what*; this plan defines *in what order* and *how we know each step is done*. Section references like "§9.3" point to the spec.
 
-Status: APPROVED, implementation in progress. Phase 0 and Phase 1 are complete (2026-10-10); Phase 2 has not started. The spec §20 recommendations were accepted except C1, C2 and C3, which still need client data ([DECISIONS.md](./DECISIONS.md) D-001).
+Status: **REVISION 2 — APPROVED (2026-10-11).** Phases 0 and 1 are complete (built from Revision 1). Revision 2 adds Phase 1b and revises Phases 2–12 after the 2026-10-11 design review (DECISIONS.md D-009 – D-016). No Revision 2 implementation has started. Decision IDs (P-xx) and client items (K-xx) are listed in spec §20.
 
 ---
 
@@ -11,221 +11,238 @@ Status: APPROVED, implementation in progress. Phase 0 and Phase 1 are complete (
 - Read the relevant guide in `node_modules/next/dist/docs/` before writing Next.js code (Next 16.4: `proxy.ts`, async request APIs, `cacheComponents` → session reads inside `<Suspense>`).
 - shadcn components are **Base UI**-based (`base-nova`); use the `render` prop pattern, not Radix `asChild`.
 - Never hardcode secrets; never edit `.env.local`; document new variables in `.env.example`.
-- Every schema change is a migration file in `supabase/migrations/`, applied first to the dev database, then to the client project only after review.
-- After every migration: regenerate `lib/database.types.ts`, run Supabase security + performance advisors, and fix findings before continuing.
-- Every RPC: `SECURITY DEFINER`, `SET search_path = ''`, schema-qualified names, `auth.uid()` check first, typed result codes instead of raw exceptions for expected failures, `GRANT EXECUTE` only to the intended role (`REVOKE ... FROM public, anon` by default).
-- Server Actions: Zod-validate input → call RPC with the user-scoped client → map result code to a typed `ActionResult` → refresh UI. No business rule exists only in TypeScript.
+- **Environments:** all development and testing happens on the **development** Supabase project (`ldhpbfujqnyovovabvcg`). The **production** project is created separately before deployment (Phase 12) and receives only reviewed migrations (`supabase db push`) and documented settings. No tests, experiments or MCP write access on production (spec §22).
+- Every schema change is a migration file in `supabase/migrations/`. After every migration: regenerate `lib/database.types.ts`, run the security and performance advisors, fix findings.
+- Every RPC: `SECURITY DEFINER`, `SET search_path = ''`, schema-qualified names, caller checks first (`private.is_permanent_user()` first, except station RPCs and `verify_certificate`), typed result codes for expected failures, `GRANT EXECUTE` only to the intended role (`REVOKE … FROM public, anon` by default).
+- Every new table that station devices must not read gets a **restrictive** permanent-user policy (spec §13.1 rule 7).
+- Every phase's SQL tests include: anonymous station user denied; unprivileged user denied; role columns not writable.
+- Server Actions: Zod-validate → DAL check → RPC with the user-scoped client → typed `ActionResult` → refresh UI. No business rule exists only in TypeScript.
 - Keep UI functional and clean during feature phases; the Impeccable polish pass is Phase 12.
 - One phase = one or more small PR-sized commits. Do not mix phases.
+- Items marked **[DEFERRED]** are not part of the MVP build; nothing marked **[CLIENT]** is assumed.
 
 ---
 
 ## Phase Dependency Graph
 
 ```
-P0 Foundation
- └─ P1 Core schema (profiles, lookups, helpers) + RLS
-     └─ P2 Auth + profile
-         └─ P3 App shell + navigation + guards
-             ├─ P4 Organizer applications + admin
-             │   └─ P5 Events (organizer CRUD + lifecycle)
-             │       └─ P6 Discovery + invites + registration (participant)
-             │           └─ P7 Registration management (organizer, bulk)
-             │               └─ P8 Attendance (sessions, dynamic QR, realtime station)
-             │                   └─ P9 Certificates
-             │                       └─ P10 Reports + exports
-             └─────────────────────────── P11 Dashboards (needs P4–P10 data)
-P12 QA, security, polish, deployment (after all)
+P0 Foundation ✅
+ └─ P1 Core schema + RLS ✅
+     └─ P1b Environments + schema corrections
+         └─ P2 Auth (email confirmation) + onboarding
+             └─ P3 Shell, three dashboards, switcher, guards, admin lookups
+                 ├─ P4 Organizer applications + admin users/disputes
+                 │   └─ P5 Events (+ attendance settings, ownership transfer)
+                 │       └─ P6 Discovery + registration (+ identity lock, on-site rules)
+                 │           └─ P7 Registration management (bulk)
+                 │               └─ P8 Attendance: sessions, tokens, stations, self-scan, flags
+                 │                   └─ P9 Certificates
+                 │                       └─ P10 Reports + exports
+                 └────────────────────────── P11 Dashboards (needs P4–P10 data)
+P12 QA, security, privacy, polish, production deployment (after all)
 ```
 
 Milestones:
-- **M1 — Accounts** (end of P3): users sign up, complete profile, see role-aware shell.
-- **M2 — Organizers** (end of P5): admin approves organizers; organizers create and publish events.
+- **M1 — Accounts** (end of P3): sign up → confirm email → onboarding → role-aware dashboards with switcher; admins manage lookups.
+- **M2 — Organizers** (end of P5): admin approves organizers; organizers create and publish events; admin can transfer ownership.
 - **M3 — Registration** (end of P7): full registration loop incl. manual approval and bulk actions.
-- **M4 — Attendance** (end of P8): live check-in demo works end-to-end on a phone + laptop.
+- **M4 — Attendance** (end of P8): self-service time-in/time-out on a phone against a paired station laptop with no organizer session; flags and revocation work.
 - **M5 — Certificates & Reports** (end of P10): thesis-complete feature set.
-- **M6 — Release candidate** (end of P12): tested, audited, polished, deployed to Vercel.
+- **M6 — Release candidate** (end of P12): tested, audited, polished, deployed with production SMTP.
 
 ---
 
-## Phase 0 — Foundation and Decisions
+## Phase 0 — Foundation and Decisions ✅
 
-Goal: answer open questions and prepare tooling; no features.
+**Status: Complete (2026-10-10).** Decisions in [DECISIONS.md](./DECISIONS.md) D-001 – D-005.
 
-**Status: ✅ Complete (2026-10-10).** Decisions recorded in [DECISIONS.md](./DECISIONS.md) D-001 – D-005.
+- [x] Spec §20 C1–C20 recommendations accepted (C1–C3 pending client data; C1 later closed in Revision 2).
+- [x] Git and tool folders resolved. — D-002 corrected on 2026-10-11: the repository works on `main` with remote `origin`.
+- [x] Baseline committed.
+- [x] Dev database decision. — **Updated by Revision 2 (D-016):** the D-004 project `ldhpbfujqnyovovabvcg` remains the **development** project; a separate production project is created in Phase 12.
+- [x] Tooling: `supabase` CLI, `server-only`, `@date-fns/tz`, `vitest`. Playwright deferred to Phase 12 (D-003).
+- [x] npm scripts `db:types`, `db:push`, `test`, `test:db`, `typecheck`.
+- [x] `.env.example`; shadcn components; root metadata; `lib/datetime.ts` with tests.
 
-- [x] Get answers for spec §20 items C1–C20 (or written acceptance of recommendations). Update SYSTEM_SPEC.md accordingly. — Recommendations accepted; C1/C2/C3 still need client data (D-001).
-- [x] Resolve git branch (`master` vs `main`) and whether `.agent/`, `.agents/`, `.claude/`, `.codex/`, `.gemini/`, `.pixel-agents/`, `.impeccable/` are committed or added to `.gitignore`. — Local `master`, no remote; tool folders git-ignored (D-002).
-- [x] Commit the current uncommitted baseline (deps, shadcn components, `globals.css`) as its own commit.
-- [x] Decide dev database (separate Supabase dev project recommended, or local Supabase via Docker Desktop). — No Docker; empty client project used with additive migrations + rolled-back tests (D-004).
-- [x] Install dev tooling:
-  - [x] `supabase` CLI as devDependency; `supabase init` → `supabase/config.toml`, `supabase/migrations/`, `supabase/seed.sql`.
-  - [x] `server-only`, `@date-fns/tz`.
-  - [x] `vitest` (+ `@vitejs/plugin-react` only if component tests are added).
-  - [x] Optional: `@playwright/test` for E2E (decide in P0). — Deferred to Phase 12 (D-003).
-- [x] Add npm scripts: `db:types` (generate types to `lib/database.types.ts`), `db:push`, `test`, `test:db`, `typecheck` (`tsc --noEmit`).
-- [x] Add `.env.example` with `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_APP_URL`. Ask client to add `NEXT_PUBLIC_APP_URL` to their env.
-- [x] Add missing shadcn components: `sidebar`, `sonner`, `radio-group`, `field` (or form helpers), `scroll-area`, `breadcrumb`, `toggle-group` (all via shadcn CLI so they match `base-nova`).
-- [x] Replace root `metadata` (title template `%s · EventHub`, description), set `lang="en"`.
-- [x] Create `lib/datetime.ts` (Asia/Manila formatting/combining helpers) with unit tests.
+Verification: build, lint, typecheck, unit tests pass; no secrets in git. CLI connection still blocked on an access token (D-004); optional in Phase 1b (MCP remains the fallback, D-006).
+
+---
+
+## Phase 1 — Core Schema, Helpers, RLS Foundation ✅
+
+**Status: Complete (2026-10-10)** on project `ldhpbfujqnyovovabvcg`; see D-006 – D-008.
+
+Applied migrations: `20261009202616_extensions_and_enums`, `…202618_lookups`, `…202637_profiles`, `…202640_auth_helpers`, `…202651_profiles_rls`, `…202653_audit_logs`, `20261010012943_profiles_select_policy_consolidation`.
+
+- [x] `pgcrypto`, `private` schema, all Revision 1 enums, `set_updated_at()`.
+- [x] `colleges`, `event_categories` + read policies. Seed rows not created (C3).
+- [x] `profiles` with generated `is_complete`, constraints, column grants, `handle_new_user()`, email-sync trigger.
+- [x] `is_admin()`, `is_active_organizer()`, `profile_full_name()`.
+- [x] Profiles RLS (consolidated select policy, D-007), `audit_logs` + `log_audit()`.
+- [x] pgTAP suite `001_profiles.test.sql` 32/32 (run through MCP, rolled back).
+- [x] Advisors clean; types generated.
+
+Revision 2 changes several of these objects; they are corrected in Phase 1b (spec §12.6), not by editing applied migrations.
+
+---
+
+## Phase 1b — Environments and Schema Corrections (NEW)
+
+Goal: a clearly designated development environment and a Phase 1 schema that matches Revision 2. No client dependency.
+
+### Environments
+- [ ] Record `ldhpbfujqnyovovabvcg` as the **development** project (P-23 reversed) in README and `.env.example` comments. The 7 Phase 1 migrations are already applied there; the Supabase MCP integration and `.env.local` already point there.
+- [ ] Optional: CLI access to development (`supabase login`, `supabase link`) so `npm run test:db`/`db:types` work; until then tests run through MCP as in D-006.
+- [ ] Development Auth settings (spec §22): Confirm email **on**; link expiry 24 h (P-03); email templates using `token_hash` links to `/auth/confirm`; anonymous sign-ins **on**; manual linking off; Site URL/redirects for localhost. Production settings are applied in Phase 12.
+- [ ] No production project exists yet; it is created in Phase 12 (K-08).
+
+### Corrective migration (development first; spec §12.6)
+- [ ] Drop and recreate `attendance_status` as `('present','revoked')`; create `attendance_session_kind`, `attendance_policy`, `attendance_flag`, `flag_resolution`, and (P-12) `registration_channel`.
+- [ ] `programs` table (`UNIQUE (college_id, name)`, `UNIQUE (college_id, id)`) + read policy.
+- [ ] `profiles`: replace `program` with `program_id` + composite FK; add `identity_flagged_at`, `identity_flag_reason`; (P-06) `privacy_consented_at`, `privacy_notice_version`; recreate `is_complete`; update column grants.
+- [ ] Admin insert/update policies and grants on `colleges`, `programs`, and (P-09) `event_categories` (no delete).
+- [ ] `private.is_permanent_user()`; restrictive permanent-user policies on `profiles` and `audit_logs`.
+- [ ] `handle_new_user()` skips anonymous users.
+- [ ] (P-06) `accept_privacy_notice(version)` RPC.
+
+### Tests
+- [ ] Update `001_profiles.test.sql` for `program_id` and the new `is_complete`.
+- [ ] New: anonymous auth user gets no profile row; anonymous claims cannot read `profiles`, `audit_logs`; non-admin cannot write lookups; admin can insert/update but not delete; program must belong to the chosen college.
+- [ ] Extract the shared test helper (create users, impersonate permanent/anonymous) now that a second test file exists.
+
+### Documentation
+- [x] DECISIONS.md: D-002 corrected, D-004 updated, Revision 2 entries D-009 – D-016 added (done with the Revision 2 approval, 2026-10-11).
 
 **Verification**
-- [x] `npm run build`, `npm run lint`, `npm run typecheck` pass.
-- [x] `npm test` runs (datetime tests pass, incl. a UTC-server case formatting to Manila time).
-- [ ] `supabase` CLI can connect to the dev database (`supabase migration list`). — **Blocked:** needs `supabase login` with the client's access token; MCP integration used instead (D-004).
-- [x] No secrets in git (`git grep -i "service_role\|sb_secret"` returns nothing).
+- [ ] `npm run test:db` passes on development via the linked CLI.
+- [ ] Advisors clean on development.
+- [ ] Corrective migration committed with the regenerated types; it reaches production only through the Phase 12 `supabase db push` of all reviewed migrations.
 
 ---
 
-## Phase 1 — Core Schema, Helpers, RLS Foundation
+## Phase 2 — Authentication (Email Confirmation) and Onboarding
 
-Goal: identity tables and authorization primitives everything else depends on.
-
-**Status: ✅ Complete (2026-10-10)**, except the lookup seed rows, which are blocked on client data (C3, D-001). Migrations are applied to the client project; see [DECISIONS.md](./DECISIONS.md) D-006 – D-008.
-
-### Migration order (files are applied in this order)
-
-Actual file names use the remote migration versions (`supabase/migrations/20261009202616_extensions_and_enums.sql` … `20261009202653_audit_logs.sql`), plus `20261010012943_profiles_select_policy_consolidation.sql` (D-007).
-
-1. `0001_extensions_and_enums.sql`
-   - [x] Ensure `pgcrypto` (in `extensions` schema) is available.
-   - [x] Create all enums from spec §12.1 (created up front so later migrations don't alter types).
-   - [x] `set_updated_at()` trigger function.
-2. `0002_lookups.sql`
-   - [x] `colleges`, `event_categories` + RLS (select for anon/authenticated).
-   - [ ] Seed rows (from C3). — **Blocked:** official lists not yet provided by the client. No placeholder rows are created (D-001).
-3. `0003_profiles.sql`
-   - [x] `profiles` table per §12.2 incl. generated `is_complete`, constraints, indexes.
-   - [x] `handle_new_user()` trigger on `auth.users` (copies id, email, name metadata if present).
-   - [x] Email-sync trigger on `auth.users` update of email.
-   - [x] `REVOKE UPDATE ON profiles FROM authenticated; GRANT UPDATE (first_name, middle_name, last_name, suffix, student_id, college_id, program, year_level, avatar_path) ON profiles TO authenticated;`
-   - [ ] Trigger blocking `student_id` change once certificates exist (add the check body in P9; create stub now or add trigger in P9 — choose P9 to avoid forward references). — Deferred to Phase 9 as chosen; not a Phase 1 deliverable.
-4. `0004_auth_helpers.sql`
-   - [x] `is_admin()`, `is_active_organizer()` (STABLE, SECURITY DEFINER, `search_path=''`).
-   - [x] `profile_full_name(profiles)`.
-5. `0005_profiles_rls.sql`
-   - [x] Policies: select own; select all if admin; update own. (Organizer visibility via `can_view_profile` added in P6 once registrations exist.)
-6. `0006_audit_logs.sql`
-   - [x] `audit_logs` table, RLS (admin select), internal `log_audit(action, entity_type, entity_id, metadata)` helper (not granted to clients).
-
-### Tests (`supabase/tests/` SQL, run via `npm run test:db`)
-- [x] Test harness: helper to create test users in `auth.users` and impersonate (`set local role authenticated; set local request.jwt.claims`). — Inline fixtures and impersonation in `001_profiles.test.sql`; extract a shared helper when a second test file needs it.
-- [x] New auth user → profile row created with email.
-- [x] User can read/update own profile; cannot read another's; cannot update `is_admin` or `organizer_status` (permission denied).
-- [x] Admin can read all profiles.
-- [x] `is_complete` flips true only when all required fields set.
-
-**Verification**
-- [x] All SQL tests pass. — 32/32 on the client project through the Supabase MCP integration, rolled back (D-006). `npm run test:db` still needs the CLI link.
-- [x] Supabase security advisor: no "RLS disabled", no "function search_path mutable" warnings. — 0 security findings. Performance: only `unused_index` INFO notices, expected on an empty database (D-007).
-- [x] Types generated and committed. — `lib/database.types.ts` via the Supabase MCP integration.
-
----
-
-## Phase 2 — Authentication and Profile
-
-Goal: sign up, confirm, log in/out, reset password, complete profile with photo.
+Goal: sign up, confirm email, log in/out, resend confirmation, recover password, complete the student profile with photo. Depends on P1b.
 
 ### Auth setup order
-1. [ ] Supabase dashboard config (client performs or approves): Site URL, redirect URLs (localhost + Vercel preview + prod), email confirmation ON, email templates using `token_hash` confirm link to `/auth/confirm`. Domain restriction per C1 (Auth hook or sign-up validation).
-2. [ ] `lib/supabase/server.ts` (`createServerClient` with async `cookies()`), `lib/supabase/client.ts` (`createBrowserClient`), `lib/supabase/proxy.ts` (session refresh helper) — follow current `@supabase/ssr` docs.
-3. [ ] `proxy.ts` at project root: refresh session; redirect unauthenticated requests for `(app)`/`(station)` paths to `/login?next=…`; matcher excludes static assets.
-4. [ ] `lib/auth/dal.ts` (`server-only`): `getCurrentUser()` (uses `getClaims()`/`getUser()`, returns narrow `{ id, email, profile, isAdmin, organizerStatus }`), `requireUser()`, `requireAdmin()`, `requireOrganizer({ allowInactive })`. Use the `cacheComponents` auth pattern (session read inside Suspense; `use cache: private` only if measured useful).
-5. [ ] Route handlers: `/auth/confirm` (verifyOtp with token_hash), `/auth/callback` (exchangeCodeForSession), `/auth/signout` (POST).
-6. [ ] Pages in `(auth)`: login, signup, forgot-password, reset-password. React Hook Form + Zod; field errors; pending states; `next` param preserved (validated as same-origin relative path).
-7. [ ] Storage bucket `avatars` (private, 2 MB, jpeg/png/webp) + storage RLS (owner folder write; owner read; admin read).
-8. [ ] Profile page `/profile`: personal fields, college select, program, year level, avatar upload (client-side resize to 512 px, then upload, then update `avatar_path`, then delete old file). Banner "Complete your profile to register for events" when incomplete.
-9. [ ] `lib/validation/profile.ts` Zod schema shared by form and Server Action.
-
-**Verification**
-- [ ] Manual: sign up → email → confirm → login → profile completion → logout → login again.
-- [ ] Forgot/reset password works end-to-end.
-- [ ] Visiting `/dashboard` logged-out redirects to `/login?next=/dashboard` and returns after login.
-- [ ] Open-redirect check: `?next=https://evil.com` is ignored.
-- [ ] Avatar of user A not readable by user B (signed URL request denied).
-- [ ] Build passes with `cacheComponents` (no "cookies outside Suspense" errors).
-
----
-
-## Phase 3 — App Shell, Navigation, Guards
-
-Goal: one authenticated shell with role-aware navigation. **Milestone M1.**
-
-- [ ] `(app)/layout.tsx`: static shell (sidebar frame, top bar) with session-dependent parts (nav sections, user menu) streamed in `<Suspense>`.
-- [ ] Sidebar sections per spec §16.1 (Participant / Organizer / Admin), active-route highlighting.
-- [ ] Mobile: bottom nav (Home, Explore, Scan, My Events, Certificates) + Sheet menu for the rest.
-- [ ] `organizer/layout.tsx` guard via `requireOrganizer({ allowInactive: true })`; inactive banner "Your organizer access is suspended — read-only".
-- [ ] `admin/layout.tsx` guard via `requireAdmin()` → `notFound()` for non-admins (don't reveal admin routes).
-- [ ] `(station)` route group layout (full-screen, no sidebar) + guard.
-- [ ] Placeholder pages for every route in spec §16.1 with correct titles and empty states.
-- [ ] Shared components: `StatusBadge` (single mapping for all enums), `EmptyState`, `PageHeader`, `ConfirmDialog`, `DataTable` basics (compact table + pagination).
-- [ ] Global `error.tsx`, `not-found.tsx`, `loading` skeletons for main segments.
-- [ ] Seed one admin account in dev via SQL (`update profiles set is_admin = true where email = …`), documented in README (not in migrations).
-
-**Verification**
-- [ ] Participant sees only participant nav; admin sees admin nav; manually setting `organizer_status='active'` in dev shows organizer nav.
-- [ ] Non-admin hitting `/admin` gets 404; non-organizer hitting `/organizer` is redirected to `/become-organizer`.
-- [ ] Layout works at 360 px, 768 px, 1280 px widths; keyboard navigation through sidebar works.
-
----
-
-## Phase 4 — Organizer Applications and Admin Management
-
-Goal: participants apply; admins approve/reject/suspend/revoke. Depends on P3.
-
-### Database (`0007_organizer_applications.sql`)
-- [ ] `organizer_applications` table, partial unique pending index, checks, indexes.
-- [ ] RLS: select own; select all for admin. No direct insert/update grants.
-- [ ] RPCs: `submit_organizer_application`, `withdraw_organizer_application`, `review_organizer_application` (atomic approve: application + profile + audit), `set_organizer_status` (suspend/reinstate/revoke + reason + audit; on suspend/revoke close any open attendance sessions — add that body in P8 or write it defensively now).
-- [ ] `get_admin_overview()` (counts; extend in later phases as tables appear).
-- [ ] Storage bucket `organizer-requirements` (private, 5 MB, pdf/jpeg/png) + policies (owner insert into own folder; owner + admin select; no update/delete).
-
-### UI
-- [ ] `/become-organizer`: eligibility checks (profile complete, status), form (spec §4.1) with file uploads, data-privacy consent, status view (pending/rejected with notes/approved/suspended/revoked), withdraw, reapply.
-- [ ] `/admin/applications`: status tabs, compact table, oldest-first.
-- [ ] `/admin/applications/[id]`: applicant info, fields, document links (signed URL, 60 s, generated on click), history, Approve/Reject dialogs.
-- [ ] `/admin/organizers`: table + Suspend/Reinstate/Revoke dialogs with reason.
-- [ ] `/admin` overview tiles (users, active organizers, pending applications).
+1. [ ] Supabase dev configuration from P1b verified; (P-03) link expiry 24 h; (P-01) Turnstile test keys; (P-02) password policy.
+2. [ ] Email templates (Confirm signup, Reset password) → `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email|recovery&next=…`. Plain, short, no marketing content.
+3. [ ] `lib/supabase/server.ts`, `client.ts`, `proxy.ts` (current `@supabase/ssr` docs).
+4. [ ] `proxy.ts`: refresh session; redirect signed-out users from `(app)` to `/login?next=…`; redirect anonymous sessions from `(app)` to `/station`; matcher excludes static assets.
+5. [ ] `lib/auth/dal.ts` (`server-only`): `getCurrentUser()` → `{ id, email, isAnonymous, profile, isAdmin, organizerStatus }`; `requireUser({ allowIncomplete })` (refuses anonymous; incomplete → `/onboarding`); `requireAdmin()`; `requireOrganizer({ allowInactive })`. Cache Components auth pattern.
+6. [ ] Route handlers: `/auth/confirm` (`verifyOtp` with `token_hash`, types `email` and `recovery`; same-origin `next`), `/auth/signout` (POST). `/auth/error` page with resend form.
+7. [ ] Pages in `(auth)`:
+   - `signup`: first name, last name, email, password, CAPTCHA → `signUp` → `/signup/check-email`.
+   - `signup/check-email`: address shown, **Resend** (`auth.resend({ type: 'signup' })`, 60 s cooldown, CAPTCHA), "Wrong address? Sign up again".
+   - `login`: handles "Email not confirmed" with inline resend; preserves `next`.
+   - `forgot-password`: generic response; `reset-password`: `updateUser({ password })` then (P-05) `signOut({ scope: 'others' })`.
+   - Confirmation success → `/onboarding` with toast; link opened on another device → that device is signed in; original device shows "Already confirmed? Log in".
+8. [ ] `/privacy` page (placeholder controller/contact until **[CLIENT K-06]**).
+9. [ ] `/onboarding`: consent (P-06) → student ID, college → program cascade, year, optional middle name/suffix → photo (client resize 512 px, upload to own folder, set `avatar_path`, delete old). Student-ID-taken message with admin contact.
+10. [ ] Storage bucket `avatars` (private, 2 MB, jpeg/png/webp) + policies (owner folder write; owner read; admin read). Station and organizer read policies come in P6/P8.
+11. [ ] `lib/validation/auth.ts`, `lib/validation/profile.ts` shared by forms and Server Actions.
+12. [ ] Dev-only lookup rows inserted directly in the development database (not in migrations) so onboarding can be tested before admins enter real lists.
 
 ### Tests
-- [ ] SQL: second pending application rejected; incomplete profile cannot apply; non-admin cannot review; admin cannot review own; reject without notes fails; approve sets `organizer_status='active'`; double review returns `already_reviewed`; reinstate only from `suspended`; revoked user can apply again.
-- [ ] Storage: user B cannot read user A's requirement files; admin can.
+- [ ] Unit: auth and profile Zod schemas; `next` sanitizer.
+- [ ] SQL: `accept_privacy_notice` only for self; `is_complete` false without consent/program/photo.
 
 **Verification**
-- [ ] Manual E2E: participant applies with files → admin reviews documents → approves → participant sees organizer nav after refresh.
-- [ ] Rejection notes appear to participant; reapply works.
-- [ ] Audit log rows exist for approve/reject/suspend/revoke.
+- [ ] Sign up → email arrives (team address on built-in SMTP, or a team-owned SMTP sandbox) → link → signed in → onboarding → dashboard; logout → login.
+- [ ] Login before confirming → "Email not confirmed" + resend works; resend cooldown enforced.
+- [ ] Expired/used link → `/auth/error` → resend → new link works.
+- [ ] Sign-up with an existing email shows the same "check your email" page and reveals nothing.
+- [ ] Forgot/reset works; other sessions signed out (P-05).
+- [ ] `/dashboard` logged-out → `/login?next=/dashboard` and back; `?next=https://evil.com` ignored.
+- [ ] Anonymous session cannot open `/dashboard`.
+- [ ] Avatar of user A not readable by user B.
+- [ ] Build passes with `cacheComponents`.
 
 ---
 
-## Phase 5 — Events: Organizer CRUD and Lifecycle
+## Phase 3 — App Shell, Three Dashboards, Switcher, Guards, Admin Lookups
 
-Goal: organizers create, edit, publish, cancel, complete, delete drafts. **Milestone M2.** Depends on P4.
+Goal: one authenticated shell with Participant, Organizer and Admin dashboards and a dashboard switcher; admins can enter real lookup data. **Milestone M1.**
 
-### Database (`0008_events.sql`)
-- [ ] `events` table per §12.2 (incl. publish-completeness CHECK, generated `search`, invite code default via `generate_invite_code()` with collision retry).
-- [ ] Column grants: insert/update content columns only.
-- [ ] `events_guard` trigger: terminal-state lock, capacity ≥ approved count (count query becomes meaningful after P6; write it now), date sanity beyond CHECKs.
-- [ ] `event_phase(events)` SQL function + matching `lib/events/phase.ts` with unit tests on boundary times.
-- [ ] RLS: select non-draft for authenticated; select own; admin select; insert own as active organizer with `status='draft'`; update own as active organizer; delete own drafts.
-- [ ] RPCs: `publish_event` (re-validates required fields + future start), `cancel_event` (reason), `complete_event` (only after `starts_at`; closes session — body extended in P8), `regenerate_invite_code`.
-- [ ] Storage bucket `event-banners` (public, 5 MB) + write policies via `owns_event()`.
-
-### UI
-- [ ] `lib/validation/event.ts`: Zod schema with draft vs publish refinements (spec §7.1), shared by form and action.
-- [ ] `/organizer/events/new` and `/organizer/events/[id]/settings`: form sections (Basics, Schedule, Registration, Certificates), Manila-time date/time pickers, banner upload with preview, capacity "Unlimited" toggle, approval mode radio, visibility radio, save draft / publish.
-- [ ] Event workspace layout `/organizer/events/[id]/layout.tsx`: header (title, status badge, phase), tabs (Overview, Registrations, Attendance, Certificates, Reports, Settings); 404 if not owner.
-- [ ] Overview tab: key facts, share panel (invite code, copy link, invite QR PNG download via `qrcode`, regenerate code with warning).
-- [ ] Settings tab: edit form, Cancel event (dialog with reason), Delete draft, Mark as completed (visible when phase ≥ ongoing).
-- [ ] `/organizer/events`: compact table with status/phase filters.
-
-### Tests
-- [ ] SQL: participant cannot insert event; suspended organizer cannot insert/update; organizer A cannot update organizer B's event; cannot set `status` directly; cannot publish incomplete event; cannot edit cancelled/completed; cannot delete published.
-- [ ] Unit: event Zod schema (deadline after start rejected, end before start rejected, etc.); phase helper boundaries.
+- [ ] `(app)/layout.tsx`: static frame; session-dependent parts (switcher, nav, user menu) in `<Suspense>`.
+- [ ] **Dashboard switcher** in the top bar listing only permitted dashboards (Participant; Organizer when `organizer_status <> 'none'`; Admin when `is_admin`). Navigation only; no role state.
+- [ ] Sidebar per dashboard (spec §16.1) + compact links to the others; active-route highlighting.
+- [ ] Mobile: participant bottom nav (Home, Explore, Scan, My Events, Certificates) + Sheet menu; switcher in the Sheet.
+- [ ] `organizer/layout.tsx`: `requireOrganizer({ allowInactive: true })`; suspended/revoked banner (read-only).
+- [ ] `admin/layout.tsx`: `requireAdmin()` → `notFound()` for non-admins. (P-08) admins without a student profile allowed here; default landing `/admin` for them.
+- [ ] `(station)` layout (full-screen, no sidebar).
+- [ ] Placeholder pages for every route in §16.1 with titles and empty states.
+- [ ] Shared components: `StatusBadge` (single enum mapping), `EmptyState`, `PageHeader`, `ConfirmDialog`, `DataTable` basics.
+- [ ] Global `error.tsx`, `not-found.tsx`, loading skeletons.
+- [ ] **`/admin/lookups`**: colleges (code, name, active), programs per college (name, active), (P-09) categories (name, slug, order, active). Add/rename/deactivate; no delete; audit entries `lookup.created` / `lookup.updated`.
+- [ ] **Admin provisioning procedure** documented in README: account signs up and confirms email; maintainer verifies identity; SQL sets `is_admin = true` and inserts an `admin.granted` audit row. Two admin accounts on development.
 
 **Verification**
-- [ ] Manual: create draft → publish → appears for participants (after P6) → edit → cancel; separate event → complete after start time (use dev data with past times).
-- [ ] Times entered as 9:00 AM Manila display as 9:00 AM on a UTC server build (`TZ=UTC npm run build && npm start`).
+- [ ] Participant sees only the Participant dashboard; admin sees Admin in the switcher; setting `organizer_status = 'active'` on dev shows Organizer.
+- [ ] Non-admin `/admin` → 404; non-organizer `/organizer` → redirect to `/become-organizer`.
+- [ ] No client path (sign-up metadata, profile update, RPC) can set `is_admin` or `organizer_status` (SQL tests from P1 still green + metadata test).
+- [ ] Lookup admin works; deactivated college/program hidden in onboarding but kept on existing profiles.
+- [ ] 360 / 768 / 1280 px layouts; keyboard navigation.
+
+---
+
+## Phase 4 — Organizer Applications and Admin Users
+
+Goal: participants apply; admins approve/reject/suspend/revoke; admins resolve identity disputes. Depends on P3.
+
+### Database
+- [ ] `organizer_applications` (spec §12.2), partial unique pending index, checks, indexes; RLS select own/admin; restrictive permanent-user policy.
+- [ ] RPCs: `submit_organizer_application`, `withdraw_organizer_application`, `review_organizer_application` (atomic approve + audit), `set_organizer_status` (suspend/reinstate/revoke + reason + audit; closes sessions and revokes stations once P8 tables exist — write defensively or extend in P8).
+- [ ] RPCs: `resolve_student_id_dispute`, `clear_identity_flag`. The dispute RPC bypasses the student-ID/photo lock triggers via a transaction-local setting. (Deletion requests: maintainer procedure, spec §21.2 — no RPC, P-10.)
+- [ ] `get_admin_overview()` (users, active organizers, pending applications, open identity flags).
+- [ ] Storage bucket `organizer-requirements` (private, 5 MB, pdf/jpeg/png); owner insert into own folder; owner + admin select; no update/delete.
+
+### UI
+- [ ] `/become-organizer`: eligibility (confirmed + complete profile, status), form (§4.1), uploads, consent, status views, withdraw, reapply. Proof-document guidance text **[CLIENT K-03]**.
+- [ ] `/admin/applications` and `/admin/applications/[id]` (signed URLs 60 s on click; Approve/Reject dialogs).
+- [ ] `/admin/organizers`: Suspend/Reinstate/Revoke with reason.
+- [ ] `/admin/users` and `/admin/users/[id]`: search; Resolve dispute; Clear flag.
+- [ ] `/admin` overview tiles.
+
+### Tests
+- [ ] Second pending application rejected; incomplete profile cannot apply; non-admin cannot review; admin cannot review own; reject without notes fails; approve sets `active`; double review → `already_reviewed`; reinstate only from `suspended`; revoked user can reapply.
+- [ ] Dispute: clears student ID, sets flag, audit row; non-admin denied; anonymous denied.
+- [ ] Storage: user B cannot read A's documents; admin can.
+
+**Verification**
+- [ ] E2E: apply with files → admin reviews → approve → Organizer appears in the switcher.
+- [ ] Rejection notes visible; reapply works; audit rows for approve/reject/suspend/revoke/dispute.
+
+---
+
+## Phase 5 — Events: Organizer CRUD, Lifecycle, Ownership Transfer
+
+Goal: organizers create, edit, publish, cancel, complete, delete drafts; admins transfer ownership. **Milestone M2.**
+
+### Database
+- [ ] `events` table (spec §12.2) incl. `attendance_policy`, `attendance_opens_minutes_before` (P-11: 0–180), `allow_onsite_registration`; publish CHECK; `search`; invite code generator.
+- [ ] Column grants; `events_guard` (terminal lock, capacity ≥ approved count, (P-11) attendance settings lock after first session — body completed in P8).
+- [ ] `event_phase(events)` + `lib/events/phase.ts` with boundary tests.
+- [ ] RLS per §13.2 + restrictive permanent-user policy.
+- [ ] RPCs: `publish_event`, `cancel_event`, `complete_event`, `regenerate_invite_code`, **`transfer_event_ownership`** (admin; active organizer target without a registration for the event; reason; audit; closes sessions/revokes stations once P8 exists).
+- [ ] Storage bucket `event-banners` (public, 5 MB) + owner write policies.
+
+### UI
+- [ ] `lib/validation/event.ts` (draft vs publish refinements).
+- [ ] Event form sections: Basics, Schedule, Registration (incl. on-site switch), **Attendance** (policy, lead time), Certificates.
+- [ ] Workspace layout + tabs; Overview with share panel; Settings with cancel/delete/complete.
+- [ ] `/organizer/events` table.
+- [ ] `/admin/events/[id]` minimal view with **Transfer ownership** dialog (searchable active organizers, reason).
+
+### Tests
+- [ ] Participant cannot insert; suspended organizer cannot write; A cannot update B's event; cannot set `status` or `organizer_id` directly; cannot publish incomplete; cannot edit terminal events; cannot delete published.
+- [ ] Transfer: non-admin denied; target not active → refused; target registered → refused; audit row; old owner loses access.
+- [ ] Unit: event schema, phase helper.
+
+**Verification**
+- [ ] Draft → publish → edit → cancel; complete after start (dev data with past times).
+- [ ] 9:00 AM Manila displays as 9:00 AM on a UTC build.
+- [ ] Transfer a completed event; new owner sees it, old owner gets 404.
 
 ---
 
@@ -233,107 +250,106 @@ Goal: organizers create, edit, publish, cancel, complete, delete drafts. **Miles
 
 Goal: participants find events and register. Depends on P5.
 
-### Database (`0009_registrations.sql`)
-- [ ] `event_registrations` table, unique `(event_id, user_id)`, unique `(id, event_id, user_id)` (for attendance composite FK), indexes.
-- [ ] RLS: select own; select for event owner. No direct writes.
-- [ ] `can_view_profile(profile_id)` helper + profiles select policy for event owners; avatars storage select policy using it.
-- [ ] RPCs: `register_for_event` (lock event row `FOR UPDATE`, all checks in spec §8 rule 2, capacity, idempotent existing-row handling, own-event refusal), `cancel_registration`, `get_event_by_invite_code`.
-- [ ] Explore query: either a SQL function `search_events(tab, q, category_ids, college_id, from, to, page, page_size)` returning rows + total, or PostgREST queries built server-side. **Recommendation:** SQL function (keeps phase logic in one place).
+### Database
+- [ ] `event_registrations` (§12.2) incl. (P-12) `registration_channel`; uniques; indexes; RLS own + owner; no direct writes.
+- [ ] `can_view_profile(profile_id)` — event owner of a registration; (P-20) until 30 days after completion or cancellation; add to the profiles select policy (D-007) and the avatars select policy.
+- [ ] **Identity-lock trigger body** on `profiles`: blocks changes to `student_id` and `avatar_path` (P-07, narrowed; names stay editable) while an approved registration for a published, not-yet-ended event exists.
+- [ ] RPCs: `register_for_event` (row lock, §8 rules incl. on-site branch — the session check activates in P8), `cancel_registration`, `get_event_by_invite_code`.
+- [ ] `search_events(...)` SQL function.
 
 ### UI
-- [ ] `/events` Explore: tabs (Upcoming, Open for registration, My college, Past), search (debounced, URL-driven), filters, 12/page pagination, cards, skeletons, empty/no-result states.
-- [ ] `/events/[id]` details with the action button state machine (spec §18), capacity indicator, register/cancel with confirm, result toasts mapped from RPC codes.
-- [ ] `/events/join`: invite code input (case-insensitive, strips spaces) → redirect.
-- [ ] `/e/[code]` route handler → redirect to `/events/[id]` (login first if needed, preserving `next`).
-- [ ] `/my-events`: tabs Upcoming / Pending / Past / Cancelled & rejected; registration + attendance status columns.
+- [ ] `/events` Explore; `/events/[id]` details with the action state machine; `/events/join`; `/e/[code]`; `/my-events`.
+- [ ] Profile page shows the identity lock reason.
 
 ### Tests
-- [ ] SQL: duplicate registration returns existing; deadline passed → `registration_closed`; incomplete profile refused; own event refused; cancelled event refused; unlisted not returned by Explore but readable by id.
-- [ ] **Concurrency test**: capacity 1, two sessions call `register_for_event` concurrently (two psql connections or a script with two clients) → exactly one approved.
-- [ ] Unit: invite code normalizer.
+- [ ] Duplicate registration returns existing; deadline passed → `registration_closed`; incomplete profile refused; own event refused; cancelled event refused; unlisted hidden from Explore but readable by id.
+- [ ] Identity lock: photo change blocked during an approved upcoming registration; allowed after the event ends.
+- [ ] `can_view_profile` window (P-20).
+- [ ] Concurrency: capacity 1, two concurrent registrations → exactly one approved.
 
 **Verification**
-- [ ] Manual on a phone (real device or devtools 360 px): browse, filter, open invite QR with phone camera → event page → register.
-- [ ] Explore returns correct results for each tab with seeded data spanning past/now/future.
+- [ ] Phone (360 px): browse, filter, open invite QR → event → register.
 
 ---
 
 ## Phase 7 — Registration Management (Organizer)
 
-Goal: manual approval with safe bulk actions. **Milestone M3.** Depends on P6.
+Goal: manual approval with safe bulk actions. **Milestone M3.**
 
-### Database (`0010_registration_decisions.sql`)
-- [ ] RPCs: `decide_registrations(event_id, ids[], decision, reason)` (≤ 500 ids, only pending rows of that event, oldest-first under capacity, returns counts), `approve_all_pending(event_id)`, approved→rejected path (blocked if attendance exists).
-- [ ] Extend `events_guard` capacity check test now that registrations exist.
-
-### UI
-- [ ] Registrations tab: status tabs with counts, search (name / student ID), 50/page table (photo thumb, name, student ID, college, program/year, registered at, status, decided by/at).
-- [ ] Checkbox selection: per row + "select all on this page"; **selection resets on filter/search/page change**; selection count bar.
-- [ ] Bulk actions: Approve selected, Reject selected (optional reason), Approve all pending (dialog shows server count + remaining capacity).
-- [ ] Result summary toast from returned counts.
-- [ ] Capacity bar "57 / 100 approved".
-- [ ] Participant side: pending/rejected/approved states reflect immediately on My Events.
-
-### Tests
-- [ ] SQL: decide ids from another event are ignored (`skipped_not_pending`); capacity 10 with 15 pending → approve all approves 10 oldest; non-owner cannot call; suspended owner cannot call.
-- [ ] UI test (Vitest component test or Playwright): selection clears on filter change.
-
-**Verification**
-- [ ] Manual with 120 seeded registrants: bulk approve page 1, filter, approve all pending, reject selected with reason; numbers in tabs and reports match.
+- [ ] RPCs `decide_registrations`, `approve_all_pending`, approved → rejected path (blocked if an attendance record exists).
+- [ ] Registrations tab: status tabs with counts, search, channel filter, 50/page table, page-only select-all, **selection clears on filter/search/page change**, bulk actions with result summary, capacity bar.
+- [ ] Tests: foreign ids ignored; capacity 10 with 15 pending → 10 oldest approved; non-owner and suspended owner denied; UI test for selection reset.
+- [ ] Verification: 120 seeded registrants; numbers in tabs and reports match.
 
 ---
 
-## Phase 8 — Dynamic QR Attendance with Realtime Verification
+## Phase 8 — Self-Service Attendance with Stations (REWRITTEN)
 
-Goal: the core check-in feature. **Milestone M4.** Depends on P7.
+Goal: time-in/time-out by participant self-scan against a paired station, with flags and organizer corrections. **Milestone M4.** Depends on P7.
 
 ### Implementation order
-1. **Schema** (`0011_attendance.sql`)
-   - [ ] `attendance_sessions` (+ partial unique open index), `attendance_session_secrets` (revoke all from anon/authenticated, RLS on, no policies), `attendance_records` (unique `registration_id`, composite FK to registrations, CHECKs, indexes).
-   - [ ] RLS: sessions select for owner and for approved registrants of the event; records select own + owner.
+1. **Schema**
+   - [ ] `attendance_sessions` (+ `kind`, `closes_at`), `attendance_session_secrets` (no grants), `attendance_records` (reshaped, §12.2), `attendance_device_signals` (no grants), `attendance_stations`.
+   - [ ] RLS: sessions (owner, approved registrants, active station); records (own, owner, active station); stations (owner); restrictive permanent-user policies where stations must not read.
+   - [ ] Avatars storage policy for active stations (owners with a present record in the station's event).
    - [ ] `alter publication supabase_realtime add table attendance_records;`
+   - [ ] Complete `events_guard` attendance-settings lock (P-11).
 2. **Session RPCs**
-   - [ ] `open_attendance_session` (owner, active organizer, event published, time window C8, no open session; creates secret with `gen_random_bytes(32)`).
+   - [ ] `open_attendance_session(event_id, kind)`: owner, active organizer, published, policy allows `kind`, `now()` inside the attendance window (`starts_at − lead time` … `effective_end + 60 min`, P-14); sets `closes_at` to the window end; time-out closes time-in (P-15); refuses `time_in` once any time-out session exists (`time_out_started`); creates the secret.
    - [ ] `close_attendance_session`.
-   - [ ] Extend `complete_event`, `cancel_event`, `set_organizer_status` to close open sessions.
-3. **Token RPCs**
-   - [ ] `get_attendance_qr(session_id)` → `{ token, window_ends_at }` (HMAC via `extensions.hmac`, base64url encoding helper).
-   - [ ] `submit_attendance_scan(token, expected_event_id)` → result code + context (event title, verified_at, record id) following spec §9.3 order exactly.
-4. **Verification RPCs**
-   - [ ] `confirm_attendance` (conditional update; `already_confirmed` with verifier name/time), `dismiss_attendance`, `manual_check_in`, `revoke_attendance` (+ audit).
-5. **SQL tests** (before any UI)
-   - [ ] Token from window w valid at w and w+1, invalid at w+2 (`expired_qr`) — make window length/now injectable in an internal function for testing.
-   - [ ] Tampered token → `invalid_qr`; token of closed session → `attendance_closed`.
-   - [ ] Not registered / pending / rejected / cancelled → correct codes; wrong event with `expected_event_id`.
-   - [ ] Duplicate scan → no second row; dismissed → rescan resets to pending.
-   - [ ] Confirm twice → second returns `already_confirmed`; non-owner cannot confirm; participant cannot read secrets table (permission denied).
-   - [ ] Two open sessions for one event impossible.
-6. **Organizer Attendance tab** (`/organizer/events/[id]/attendance`)
-   - [ ] States: not started (countdown to `starts_at`), open, closed, completed.
-   - [ ] Open/Close session buttons with confirm; "Launch check-in station" (opens `/station/[id]` in new tab).
-   - [ ] Attendance table: approved registrants with attendance status (present / pending / not checked in), filters, manual check-in, revoke.
-7. **Check-in Station** (`/station/[eventId]`)
-   - [ ] Left panel: QR rendered with `qrcode` to canvas/SVG from `{APP_URL}/scan?t=…`; refetch at `window_ends_at`; countdown ring; counters; close button.
-   - [ ] Right panel: waiting state → focus card (slide/fade ≤ 200 ms, respects `prefers-reduced-motion`) with photo, name, student ID, college/program/year, registration badge, scan time → Confirm (Enter) / Not this person (Esc).
-   - [ ] Queue list of other pending check-ins (FIFO; click to focus).
-   - [ ] Realtime subscription (`postgres_changes`, filter `event_id=eq.{id}`), status indicator, fallback 3 s polling on channel error, full queue refetch on (re)subscribe, cleanup on unmount.
-   - [ ] Handle session closed from another tab (stop QR, show closed state).
-   - [ ] Laptop (1366×768) and tablet (1024×768 landscape) layouts; QR at least 320 px.
-8. **Participant scanner** (`/scan`)
-   - [ ] `?t=` present → submit immediately (after login redirect if needed).
-   - [ ] Camera scanner with `@zxing/browser` (`BrowserQRCodeReader`, back camera preferred, stop tracks on unmount/route change); parse URL or raw token; debounce repeated decodes.
-   - [ ] Permission denied / no camera / insecure context (HTTPS required) states with guidance.
-   - [ ] Result screens per code; waiting screen subscribes to own record (realtime + 4 s polling fallback) → "Attendance confirmed ✓ 9:14 AM".
-   - [ ] Dashboard/My Events "Attendance open — Scan now" CTA for approved events with an open session.
+   - [ ] Extend `complete_event`, `cancel_event`, `set_organizer_status`, `transfer_event_ownership` to close sessions and revoke stations.
+3. **Station RPCs**
+   - [ ] `create_station_pairing(event_id, label)` → 8-char code, 5 min, hashed; `claim_station_pairing(code)` (anonymous callers only; single use); `revoke_station`.
+   - [ ] `station_get_qr(event_id)` → current + 2 upcoming tokens with `valid_from`/`valid_until` + server time; updates `last_seen_at`.
+   - [ ] `station_feed(event_id, since)` → display fields only (record id, status, times, flag, name, college, `avatar_path`).
+4. **Scan RPC**
+   - [ ] `submit_attendance_scan(token, device_id, expected_event_id)` exactly per §9.3, incl. `onsite_available` and device-signal flagging.
+5. **Organizer RPCs**
+   - [ ] `manual_time_in`, `manual_time_out`, `revoke_attendance`, `resolve_attendance_flag`: reason/note required and written only to `audit_logs`; allowed while published **and after completion** for registrations without a certificate (P-17); refused on cancelled events.
+   - [ ] `get_attendance_list(event_id)`: owner-only Attendance tab data incl. reasons read from `audit_logs`.
+   - [ ] Activate the on-site branch of `register_for_event` (time-in session open + switch on). On-site approvals reuse `decide_registrations` (P-13; no separate RPC).
+   - [ ] `complete_event` warning data: open flags, attendees without time-out (P-15).
+6. **SQL tests** (before UI)
+   - [ ] Token accepted in its window and the next; future (prefetched) token rejected before its window; tampered → `invalid_qr`; closed or past `closes_at` → `attendance_closed`.
+   - [ ] Every §9.3 code incl. `not_participant`, `profile_incomplete`, `attendance_revoked`, `time_in_required`, `already_timed_out`.
+   - [ ] Time-out impossible for `time_in_only`; opening time-out closes time-in; time-in refused after time-out started (`time_out_started`); opening allowed until effective end + 60 min and refused after.
+   - [ ] Corrections after completion: allowed for a registration without a certificate, refused once a certificate exists, refused on cancelled events; reasons appear in `audit_logs` only.
+   - [ ] `attendance_records` has no free-text columns readable by a station (schema assertion).
+   - [ ] Same device hash + two users + same event → both flagged; different events → not flagged.
+   - [ ] Station: reads only its event's feed and avatars; denied after revoke/expiry; cannot call participant/organizer/admin RPCs; cannot read signals, secrets, other events, profiles directly.
+   - [ ] Pairing code single use, expires after 5 min, cannot be claimed by a permanent user.
+   - [ ] Manual corrections require a reason, are owner-only, blocked for suspended organizers, audited.
+   - [ ] On-site: allowed only with switch on and time-in open; follows approval mode and capacity.
+   - [ ] 20 scripted users scanning in one window → 20 records, no duplicates.
+7. **Organizer Attendance tab**
+   - [ ] States: not yet openable (countdown to lead time), time-in open, time-out open, closed/expired, completed.
+   - [ ] Session controls (P-16: organizer device only); **Add station** (code display with expiry), stations list (label, last seen, revoke).
+   - [ ] Attendance table: approved registrants with time-in/out, method, flags; filters; manual time-in/out, revoke, resolve flag; "On-site, awaiting approval".
+8. **Station** (`/station`, `/station/[eventId]`)
+   - [ ] `lib/supabase/station-client.ts` with a separate cookie name; anonymous sign-in with CAPTCHA (P-01); code entry.
+   - [ ] Left panel: event name, QR from `{APP_URL}/scan?t=…` (≥ 320 px), switch tokens by server-time offset, countdown ring, session status, instructions.
+   - [ ] Right panel: realtime feed (photo, name, college, status, ⚠), counters; no student IDs, errors or reasons. Photos via signed URLs with a **10-minute** expiry, re-signed as needed.
+   - [ ] Realtime subscription + 3 s polling fallback + full refetch on resubscribe + cleanup on unmount; connection indicator.
+   - [ ] States: unpaired, invalid/expired code, session closed, grant revoked/expired, "organizer signed in on this device" warning.
+   - [ ] Layouts: 1366×768 laptop, 1024×768 tablet landscape.
+9. **Participant scanner** (`/scan`)
+   - [ ] `?t=` → submit immediately when signed in; when signed out → login → `/scan` with camera open and "scan again" message.
+   - [ ] Camera scanner (`@zxing/browser`, back camera, stop tracks on unmount, debounce); device ID (localStorage + cookie).
+   - [ ] Result screen per code; **Register on-site** path; permission denied / no camera / insecure context states.
+   - [ ] Dashboard and My Events "Attendance open — Scan now" CTA.
+10. **Scheduled jobs** (`pg_cron`)
+    - [ ] Enable the `pg_cron` extension on development (migration). Jobs (P-21): purge device signals 30 days after completion; delete anonymous station users 7 days after grant expiry. Periods are parameters pending K-07.
 
 ### Verification
-- [ ] All SQL tests pass.
-- [ ] **Live demo test** (two physical devices): laptop station + phone participant on HTTPS (Vercel preview or `next dev --experimental-https`): scan → card appears on station < 2 s → confirm → phone shows confirmed.
-- [ ] Wait 61 s with a screenshot of an old QR → `expired_qr`.
-- [ ] Turn off Wi-Fi on station for 10 s → indicator shows reconnecting/polling → pending scans made meanwhile appear after reconnect.
-- [ ] Two station tabs: confirming in one removes the card in the other with "already confirmed".
-- [ ] 20 seeded scans in quick succession (script calling the RPC as 20 test users) → queue shows all 20, no duplicates.
-- [ ] Manual check-in and revoke work and are audit-logged.
+- [ ] All SQL tests pass on development.
+- [ ] **Live test:** station laptop with **no organizer session**, paired by code; organizer controls from a phone; participant phone over HTTPS scans → feed shows photo + name + college in < 2 s.
+- [ ] 61 s old screenshot → `expired_qr`.
+- [ ] One phone signed into two accounts → both records ⚠ flagged.
+- [ ] Station Wi-Fi off 60 s → QR still accepted; feed catches up.
+- [ ] Revoke station → display stops within one realtime/poll cycle.
+- [ ] Time-in + time-out event: time-out scan recorded; time-out without time-in refused.
+- [ ] On-site registration (automatic and manual mode) → scan again → timed in.
+- [ ] Manual time-in, manual time-out, revoke, resolve flag are audit-logged.
 
 ---
 
@@ -341,126 +357,108 @@ Goal: the core check-in feature. **Milestone M4.** Depends on P7.
 
 Goal: template upload, constrained editor, preview, issuance, download, verification. Depends on P8.
 
-### Implementation order
-1. **Schema** (`0012_certificates.sql`)
-   - [ ] `certificate_templates` (versioning, partial unique active, immutability trigger), `certificates` (unique registration, number, verification code), `certificate_number_seq`.
-   - [ ] Profiles trigger: block `student_id` change once the user holds a certificate.
-   - [ ] RLS: templates select owner; certificates select own (non-revoked) + owner.
-   - [ ] Storage bucket `certificate-templates` (private, 10 MB, png/jpeg) + policies (owner insert; owner select; certificate holders select).
-2. **RPCs**
-   - [ ] `save_certificate_template` (new version if current is referenced, else update active), `issue_certificates` (eligibility per §10.3, single transaction, `ON CONFLICT DO NOTHING`, returns issued/skipped counts, audit), `revoke_certificate`, `refresh_certificate_name`, `apply_template_to_issued`, `verify_certificate` (grant to anon), `get_certificate_eligibility(event_id)` (counts for UI).
-3. **Renderer** `lib/certificates/render.ts` (isomorphic, no Node-only APIs)
-   - [ ] Input: background image bytes, page size, layout JSON, data (name, title, date, number, verify URL, signatory). Output: PDF bytes.
-   - [ ] Coordinate conversion (top-left fractions → pdf-lib bottom-left points), alignment, auto-shrink name to max width, color parsing, QR via `qrcode.toDataURL` → `embedPng`.
-   - [ ] Zod schema for layout JSON (`lib/validation/certificate-layout.ts`).
-   - [ ] Unit tests: coordinate math, alignment, shrink-to-fit, "ñ"/accented names render without throwing, deterministic output for same input.
-4. **Organizer Certificates tab**
-   - [ ] States per spec §18 (disabled → enable toggle; not completed → locked explanation still allowing template setup).
-   - [ ] Upload background (reads natural size, maps to A4/Letter landscape/portrait points).
-   - [ ] Constrained editor: image at fit-width, draggable field chips (pointer events, keyboard arrow nudge), side panel per field (font, size, alignment, color, enabled), signatory text, QR size; snapping to center line.
-   - [ ] Preview button → renders PDF in browser with sample data (or a chosen eligible participant) in an iframe/object.
-   - [ ] Save → `save_certificate_template`.
-   - [ ] Eligibility summary "N eligible · M issued"; **Generate certificates** with confirm; result summary; issued table (number, name, issued at, status, actions: view, revoke, refresh name); outdated-template banner + apply action.
-5. **Delivery**
-   - [ ] Route handler `/certificates/[id]/pdf` (Node runtime): `requireUser`, load certificate via RLS (owner or event owner), refuse revoked for participants, download template via user-scoped storage client, render, respond `application/pdf` with `inline` or `attachment` (`?download=1`) and `Cache-Control: private, no-store`.
-   - [ ] `/certificates` list + `/certificates/[id]` preview page with Download and Copy verification link.
-   - [ ] Public `/verify` form and `/verify/[code]` result page (no auth; `verify_certificate`); `noindex` meta.
+1. **Schema**: `certificate_templates`, `certificates`, `certificate_number_seq`; student-ID lock trigger once a certificate exists; RLS; bucket `certificate-templates` + policies.
+2. **RPCs**: `save_certificate_template`, `issue_certificates` (eligibility per §10.3 incl. time-out requirement, (P-17) unresolved flags, (P-18) identity flags; returns issued + skipped counts by reason; audited), `revoke_certificate`, `refresh_certificate_name`, `apply_template_to_issued`, `verify_certificate` (anon), `get_certificate_eligibility`.
+3. **Renderer** `lib/certificates/render.ts` (isomorphic pdf-lib) + layout Zod schema + unit tests (coordinates, alignment, shrink-to-fit, "ñ", determinism).
+4. **Organizer Certificates tab**: states per §18; upload; editor; preview; eligibility counts with links (missing time-out, flags, identity review); Generate; issued table; outdated-template banner; identity review list.
+5. **Delivery**: `/certificates/[id]/pdf` route (Node runtime, DAL, RLS, `no-store`); `/certificates` list and preview; `/verify` and `/verify/[code]` (P-19: wording; `noindex`).
 
 ### Tests
-- [ ] SQL: not completed → nothing issued; absent/dismissed/pending → not eligible; rerun issues only new ones; numbers unique and sequential; referenced template update blocked; participant cannot read another's certificate; anon `verify_certificate` returns only whitelisted fields; revoked shows revoked.
-- [ ] Storage: participant without certificate cannot read template; holder can.
+- [ ] Not completed → nothing issued; missing time-out under `time_in_and_out` → not eligible; revoked attendance → not eligible; unresolved flag → skipped (P-17); identity-flagged → skipped (P-18); rerun issues only new; numbers unique and sequential; referenced template immutable; cross-user certificate read denied; anon verify returns whitelisted fields; revoked shows Revoked.
+- [ ] Storage: participant without certificate cannot read the template; holder can.
 
 ### Verification
-- [ ] Manual: design a Canva PNG → upload → place fields → preview matches downloaded PDF pixel-for-pixel layout.
-- [ ] Complete event with 30 present / 10 absent → generate → 30 certificates; retry → 0 new.
-- [ ] Scan certificate QR with a phone → public verify page shows Valid; after revoke → Revoked.
-- [ ] Change profile name → certificate unchanged; refresh name → updated, same number.
-- [ ] Download time for one certificate < 2 s on Vercel preview.
+- [ ] Canva PNG → fields → preview matches download.
+- [ ] 30 eligible / 10 absent / 2 flagged → 30 issued; resolve flags → rerun → 2 more.
+- [ ] Phone scan of certificate QR → Valid; after revoke → Revoked.
+- [ ] Name change → snapshot unchanged; refresh → updated, same number.
+- [ ] One certificate downloads in < 2 s on a Vercel preview.
 
 ---
 
 ## Phase 10 — Reports and Exports
 
-Goal: organizer reports with CSV + printable view. **Milestone M5.** Depends on P9.
+Goal: organizer reports with CSV and printable view. **Milestone M5.**
 
-- [ ] `get_event_report(event_id)` RPC: total registrations, pending, approved, rejected, cancelled, present, not checked in (approved − present, only meaningful after completion), attendance % (present / approved), certificates issued, revoked. Owner-only (suspended owner allowed, read-only).
-- [ ] Reports tab: metric tiles, breakdown of approved vs present by college (one small table; no charts), attendance list.
-- [ ] CSV route handler `reports/export/route.ts?type=registrations|attendance|certificates`: authorize, stream CSV with UTF-8 BOM (Excel-friendly), Manila timestamps, safe filename, CSV-injection escaping (prefix `'` for cells starting with `= + - @`).
-- [ ] Printable report page (`?print=1` or print stylesheet): header with event info, metrics, attendance list; "Print / Save as PDF" button.
-- [ ] `/organizer/reports`: cross-event table (event, date, status, approved, present, attendance %, certificates) with CSV export.
+- [ ] `get_event_report(event_id)`: registrations by status and channel; present; timed out; incomplete (no time-out where required); absent; attendance %; flags (open/resolved); revoked; certificates issued/revoked. Owner-only (suspended: read-only).
+- [ ] Reports tab: tiles; approved vs present by college; attendance list with time-in/out and method.
+- [ ] CSV route `?type=registrations|attendance|certificates`: DAL + owner check; UTF-8 BOM; Manila timestamps; safe filename; CSV-injection escaping; (P-22) minimal columns (name, student ID, college, program, year, registration and attendance data; no email, no photo links).
+- [ ] Printable report (print stylesheet).
+- [ ] `/organizer/reports` cross-event table + CSV.
 
-### Tests / Verification
-- [ ] Report numbers equal direct SQL counts on seeded data (SQL test).
-- [ ] CSV opens correctly in Excel and Google Sheets, including names with "ñ".
-- [ ] Non-owner request to export route → 404.
-- [ ] Printed PDF fits A4 portrait without clipped columns.
+Tests/verification: report numbers equal direct SQL counts; CSV opens in Excel and Google Sheets with "ñ"; non-owner export → 404; print fits A4 portrait.
 
 ---
 
 ## Phase 11 — Dashboards
 
-Goal: role dashboards using data from earlier phases. Depends on P4–P10.
-
-- [ ] Participant `/dashboard`: next event card, "Attendance open — Scan now", pending registrations, recent certificates, incomplete-profile prompt.
-- [ ] Organizer `/organizer`: upcoming events with pending counts, attendance open indicators, "Awaiting completion" list, "Certificates ready to generate" list.
-- [ ] Admin `/admin`: extend `get_admin_overview()` with events by status and events this month.
-- [ ] All dashboard data fetched server-side inside Suspense boundaries with skeletons.
-
-**Verification**
-- [ ] Each widget has an empty state; each count links to its filtered list; numbers match the lists they link to.
+- [ ] Participant `/dashboard`: next event, "Attendance open — Scan now", pending registrations, recent certificates, profile prompt.
+- [ ] Organizer `/organizer`: upcoming events with pending counts, attendance open indicators, **flags to review**, on-site awaiting approval, awaiting completion, certificates ready to generate.
+- [ ] Admin `/admin`: extend `get_admin_overview()` with events by status, events this month, open identity flags.
+- [ ] Server-side data inside Suspense with skeletons. Every widget has an empty state; every count links to its filtered list; numbers match.
 
 ---
 
-## Phase 12 — QA, Security, Polish, Deployment
+## Phase 12 — QA, Security, Privacy, Polish, Production Deployment
 
 Goal: release candidate. **Milestone M6.**
 
 ### Security
-- [ ] Run Supabase security and performance advisors; resolve all findings.
-- [ ] Review every RPC: `search_path = ''`, auth check first, execute grants, no dynamic SQL from inputs.
-- [ ] Verify no table has RLS disabled and no unintended `anon` grants (`select * from information_schema.role_table_grants where grantee='anon'`).
-- [ ] Storage: attempt cross-user reads for every private bucket.
-- [ ] Next.js: every Server Action and Route Handler calls the DAL; no `service_role` anywhere; `next` redirect params validated; security headers (CSP per Next docs guide, `X-Frame-Options`/`frame-ancestors`, `Referrer-Policy`); `Permissions-Policy` allows camera on `/scan` only.
-- [ ] Rate-limit consideration: `submit_attendance_scan` and auth are protected by Supabase rate limits; document.
-- [ ] Data privacy: privacy notice page, consent on application, minimal data in exports.
+- [ ] Advisors (security + performance) clean on development and production.
+- [ ] Review every RPC: `search_path = ''`, permanent-user check, caller check, execute grants, no dynamic SQL from inputs.
+- [ ] No table with RLS disabled; no unintended `anon` grants; restrictive permanent-user policies present wherever required.
+- [ ] Storage cross-user and cross-station reads attempted for every private bucket.
+- [ ] Next.js: every Server Action/Route Handler calls the DAL; no service-role key; `next` validated; security headers (CSP, `frame-ancestors`, `Referrer-Policy`, `Permissions-Policy` camera only on `/scan`).
+- [ ] Rate limits documented: Auth email/sign-up/verification limits, anonymous sign-in limit, CAPTCHA.
+
+### Privacy
+- [ ] Privacy notice with controller and contact **[CLIENT K-06]**; retention periods approved **[CLIENT K-07]**.
+- [ ] Scheduled jobs verified (device signals, anonymous users, unconfirmed accounts).
+- [ ] README maintainer procedures: admin provisioning/removal, email correction, deletion/anonymization request (spec §21.2), retention jobs.
+- [ ] **[DEFERRED P-04]** Optional: scheduled purge of unconfirmed accounts older than 7 days.
 
 ### Testing
-- [ ] Full SQL test suite green.
-- [ ] Unit tests green.
-- [ ] E2E (Playwright, if adopted) or scripted manual checklist for: sign-up → apply → approve → create/publish → register (auto & manual) → bulk approve → attendance (scan, confirm, duplicate, expired) → complete → generate → download → verify.
-- [ ] Walk every row of spec §19 edge-case table and record pass/fail.
-- [ ] Device matrix: Android Chrome, iOS Safari (camera + native camera QR), desktop Chrome/Edge/Firefox; station on 1366×768 laptop and a tablet.
-- [ ] Load sanity: 200 seeded registrants, 50 scans within 1 minute → station keeps up.
+- [ ] Full SQL suite and unit tests green on development.
+- [ ] E2E (Playwright, if adopted) or scripted checklist: sign-up → confirm → onboarding → apply → approve → create/publish → register (auto, manual, on-site) → bulk approve → pair station → time-in/out (valid, duplicate, expired, shared device) → revoke/resolve → complete → generate → download → verify.
+- [ ] Walk every row of spec §19 and record pass/fail.
+- [ ] Device matrix: Android Chrome, iOS Safari (camera + native QR), desktop Chrome/Edge/Firefox; station on 1366×768 laptop and a tablet.
+- [ ] Load sanity: 200 registrants, 50 scans within one minute → station keeps up.
 
 ### Polish
-- [ ] Impeccable pass (audit → polish) on: Explore, Event details, Scan, Station, Registrations table, Certificate editor, Dashboards. Constraints from brief: no excessive gradients/shadows/radii, no card-in-card, compact tables, purposeful motion only.
-- [ ] Accessibility: labels, focus states, color contrast AA, status not conveyed by color alone, `prefers-reduced-motion`.
-- [ ] Copy review: consistent status names (use the `StatusBadge` mapping everywhere).
+- [ ] Impeccable pass on Explore, Event details, Scan, Station, Registrations, Attendance tab, Certificate editor, Dashboards, auth/confirmation pages.
+- [ ] Accessibility: labels, focus, AA contrast, status not by color alone, `prefers-reduced-motion`.
+- [ ] Copy review via the `StatusBadge` mapping.
 
-### Deployment
-- [ ] Vercel project (client-owned) with env vars set by the client.
-- [ ] Supabase Auth redirect URLs updated for production domain.
-- [ ] Apply migrations to the client project (`supabase db push`) after final review; regenerate types; smoke test.
-- [ ] README: setup, env vars, scripts, how to create the first admin, migration workflow.
+### Production deployment
+- [ ] **[CLIENT K-08]** Create the new, separate **production** Supabase project (client-owned); link the CLI to it; never connect AI/MCP tooling with write access.
+- [ ] Enable `pg_cron`; push **all** reviewed migrations from the repository (`supabase db push`); verify `supabase migration list` matches the repository.
+- [ ] **[CLIENT K-01]** Custom SMTP configured on production (sender address/domain per K-11); SPF/DKIM per provider; email rate limit raised; confirmation and recovery tested to a non-team address.
+- [ ] Production Auth settings per spec §22 (Confirm email on, templates, link expiry, anonymous sign-ins, CAPTCHA keys **[K-10]**, password policy, redirect URLs **[K-11]**).
+- [ ] Vercel project (client-owned) with env vars set by the client, incl. `NEXT_PUBLIC_APP_URL`.
+- [ ] Reviewed migrations pushed to production; types regenerated; advisors clean.
+- [ ] Admin accounts provisioned **[CLIENT K-02]**; lookups entered **[CLIENT K-04]**.
+- [ ] Defense-period plan **[CLIENT K-09]**.
 
 **Verification**
-- [ ] Production smoke test of the full flow with real devices.
+- [ ] Production smoke test of the full flow with real devices and a real (non-team) email address.
 - [ ] Client sign-off checklist completed.
 
 ---
 
 ## Cross-Cutting Orders (summary views)
 
-**Database migration order:** extensions/enums → lookups → profiles (+ trigger, grants) → auth helpers → profiles RLS → audit logs → organizer applications (+ bucket) → events (+ phase fn, guard, bucket) → registrations (+ can_view_profile, avatars policy, search fn) → registration decision RPCs → attendance (sessions, secrets, records, realtime publication, RPCs) → certificates (templates, certificates, sequence, bucket, RPCs, student_id lock) → reports/overview RPCs.
+**Environment order:** development project (existing) → corrective migration on development → each phase's migrations on development with tests → review → (Phase 12) create production project → push all reviewed migrations → production settings → smoke test.
 
-**Authentication setup order:** Supabase Auth settings → SSR clients → `proxy.ts` → DAL → auth route handlers → auth pages → avatars bucket → profile completion gate.
+**Database migration order:** extensions/enums ✅ → lookups ✅ → profiles ✅ → auth helpers ✅ → profiles RLS ✅ → audit logs ✅ → **corrections (enums, programs, profile columns, admin lookup writes, permanent-user guard)** → organizer applications + disputes → events (+ attendance settings, transfer) → registrations (+ channel, can_view_profile, identity lock) → registration decisions → attendance (sessions, secrets, records, device signals, stations, realtime, jobs) → certificates → reports/overview.
 
-**RLS implementation order:** helpers (`is_admin`, `is_active_organizer`) → profiles → organizer_applications → events (`owns_event`) → registrations (`can_view_profile`) → attendance sessions/records (+ secrets lockdown) → certificate templates/certificates → storage policies per bucket as each bucket is introduced. Each set lands with its SQL tests in the same phase.
+**Authentication order:** dev Auth settings (confirm email, templates, anonymous, CAPTCHA) → SSR clients → `proxy.ts` → DAL → `/auth/confirm` + `/auth/error` → sign-up / check-email / resend → login (unconfirmed handling) → forgot/reset → privacy page → onboarding + avatars bucket → production SMTP and settings (P12).
 
-**UI implementation order:** auth pages → shell/nav → profile → become-organizer → admin applications/organizers → event form + workspace shell → explore/details/join/my-events → registrations table + bulk → attendance tab → station → scanner → certificate editor/preview → certificates list/verify → reports → dashboards → polish.
+**RLS order:** helpers ✅ → permanent-user guard → lookups admin writes → organizer_applications → events → registrations (`can_view_profile`) → attendance (sessions, records, stations, secrets/signals lockdown, station avatar policy) → certificates → storage policies per bucket as introduced. Each set lands with its SQL tests.
 
-**Realtime attendance order:** schema + publication → session/token RPCs → scan/confirm RPCs → SQL tests → attendance tab (no realtime) → station with polling only → add realtime subscription + fallback → participant waiting screen realtime → two-device live test.
+**UI order:** auth + confirmation pages → onboarding → shell, dashboards, switcher → admin lookups → become-organizer → admin applications/organizers/users → event form + workspace + transfer → explore/details/join/my-events → registrations table → attendance tab → station → scanner → certificate editor/preview → certificates/verify → reports → dashboards → polish.
 
-**Certificate order:** schema + bucket → RPCs + SQL tests → isomorphic renderer + unit tests → upload + editor → in-browser preview → issuance UI → PDF route handler → participant list/preview → public verify → revoke/refresh/apply-template actions.
+**Attendance order:** schema + publication → session RPCs → station pairing + token RPCs → scan RPC → organizer RPCs → SQL tests → attendance tab (no realtime) → station with polling → realtime + fallback → scanner → jobs → two-device live test.
 
-**Reporting order:** report RPC + SQL test → reports tab tiles → CSV exports → printable view → cross-event organizer reports → dashboards consume the same RPCs.
+**Certificate order:** schema + bucket → RPCs + SQL tests → renderer + unit tests → upload + editor → preview → issuance UI with skip reasons → PDF route → participant list/preview → public verify → revoke/refresh/apply-template → identity review list.
+
+**Reporting order:** report RPC + SQL test → tiles → CSV → printable view → cross-event reports → dashboards reuse the same RPCs.
