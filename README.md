@@ -1,95 +1,142 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EventHub: A QR-Based Event Management and Attendance System with Automated Digital Certificate Generation for the College Local Council of Wesleyan University–Philippines
 
-## EventHub environments
+## Project Overview
 
-Specification and build plan: [`docs/SYSTEM_SPEC.md`](docs/SYSTEM_SPEC.md), [`docs/PLAN.md`](docs/PLAN.md), [`docs/DECISIONS.md`](docs/DECISIONS.md).
+**EventHub** is a web-based event management and attendance system developed for the College Local Council (CLC) of Wesleyan University–Philippines.
 
-- **Development** Supabase project: `ldhpbfujqnyovovabvcg`. Migrations and tests run here first. It holds no real users.
-- **Production** Supabase project: created separately before deployment (PLAN Phase 12). It receives only reviewed migrations through `supabase db push`, never test runs.
-- Required Auth settings per environment are listed in `docs/SYSTEM_SPEC.md` §22 and recorded in `supabase/config.toml`.
+The system aims to streamline event organization, student registration, attendance monitoring, and digital certificate generation through a centralized platform.
 
-## Admin provisioning (Phase 3)
+EventHub provides dedicated functionalities for administrators, event organizers, and student participants, making university events easier to organize, manage, and attend.
 
-Admin permissions are assigned only by the maintainer, never through signup metadata,
-profile forms or a public RPC. The account must sign up and confirm its email first.
-The maintainer verifies the person's identity and checks the target project before running
-the following in that project's Supabase SQL editor. A student profile is optional for
-admin work; registration, scanning and organizer applications still require one.
+## Problem Statement
 
-Replace the UUID with the verified account's `auth.users.id`. The transaction refuses
-unconfirmed or anonymous users, checks that the profile exists, and records the grant.
+Traditional event management processes often rely on manual registration, paper-based attendance sheets, and manually prepared certificates.
 
-```sql
-begin;
-do $$
-declare
-  v_id uuid := '<confirmed-user-uuid>';
-  v_email text;
-begin
-  select email into v_email from auth.users
-    where id = v_id and email_confirmed_at is not null and not is_anonymous;
-  if v_email is null then raise exception 'Confirmed permanent account required'; end if;
-  update public.profiles set is_admin = true where id = v_id;
-  if not found then raise exception 'Profile not found'; end if;
-  perform private.log_audit('admin.granted', 'profile', v_id,
-    jsonb_build_object('email', v_email, 'method', 'maintainer_identity_verified'));
-end;
-$$;
-commit;
-```
+These methods can lead to several challenges:
 
-Have the user sign in again or navigate to `/admin`. Admins with incomplete student
-profiles land there by default. Provision at least two verified admins per environment.
-Development integration checks used two temporary admins; permanent development grants
-remain pending the team's verified identities. Temporary accounts are removed after tests.
+- Time-consuming event registration and attendance recording.
+- Inaccurate attendance records and duplicate entries.
+- Difficulty monitoring participants during events.
+- Delays in preparing and distributing certificates.
+- Scattered event announcements and registration information.
+- Additional administrative workload for student organizers.
 
-## Phase 3 integration checks
+These challenges highlight the need for a centralized digital solution that improves the efficiency and organization of university events.
 
-Use development project `ldhpbfujqnyovovabvcg` only. Unit tests: `npm test`; SQL tests:
-`npm run test:db` with a linked CLI, or `scripts/tap-batch.mjs` through MCP (rolled back).
-For live checks, apply `supabase/tests/phase3-fixtures.sql` to development, build/start
-the local app, then run:
+## Proposed Solution
 
-```bash
-node --env-file=.env.local scripts/phase3-check.mjs http://localhost:3100
-```
+**EventHub** addresses these challenges by providing an integrated platform for managing university events from registration to certificate distribution.
 
-Always run `supabase/tests/phase3-cleanup.sql` afterwards, including on failure.
-These fixtures use fake identities and a test-only password; never retain them or apply
-them to production. Real event/application/attendance/certificate behavior remains in
-later phases; Phase 3 provides guarded placeholders for those routes.
+The system enables authorized organizers to create and publish events, manage participant registrations, and share event details through direct links and QR codes.
 
-## Local development
+During events, participants can scan a rotating attendance QR code using their mobile devices. The system validates their registration, records attendance, and displays check-in updates in real time.
 
-First, run the development server:
+After the event, eligible participants can receive automatically generated digital certificates, reducing manual work for organizers.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## System Features
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 1. Administrator Module
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Approve or reject organizer applications.
+- Manage organizer access and permissions.
+- Manage college and program information.
+- Handle account-related concerns.
+- Perform authorized administrative actions.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 2. Event Organizer Module
 
-## Learn More
+- Create, edit, and publish events.
+- Manage event details, schedules, venues, and participant limits.
+- Generate shareable event registration QR codes.
+- Share event links through supported platforms.
+- View and manage participant registrations.
+- Start and manage QR-based attendance sessions.
+- Monitor participant check-ins in real time.
+- Review attendance records.
+- Generate automated digital certificates.
+- Access event reports and export records.
 
-To learn more about Next.js, take a look at the following resources:
+### 3. Student Participant Module
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Create an account with email verification.
+- Complete and manage student profile information.
+- Browse and search available university events.
+- View event details and register online.
+- Access registered and attended events.
+- Scan QR codes for attendance check-in.
+- View attendance status.
+- Download eligible digital certificates.
+- Verify issued certificates.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## How the System Works
 
-## Deploy on Vercel
+**Step 1 — Event Creation**
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+An approved organizer creates an event by entering the required information, including the event title, description, date, time, venue, and registration details.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Step 2 — Event Publishing and Sharing**
+
+The organizer publishes the event, making it available through the EventHub event feed. A shareable registration QR code and direct event link allow students to access its details conveniently.
+
+**Step 3 — Participant Registration**
+
+Students create an account, complete their profile, browse available events, and register for their chosen activities.
+
+**Step 4 — QR-Based Attendance**
+
+During an event, the organizer displays a rotating attendance QR code on a laptop or designated screen.
+
+Registered participants scan the QR code using their mobile devices. The system validates the check-in and records attendance while updating the organizer's live attendance display.
+
+**Step 5 — Digital Certificate Generation**
+
+After the event, the system determines participant eligibility based on verified attendance and applicable event requirements.
+
+Authorized organizers can generate digital certificates for eligible participants.
+
+**Step 6 — Certificate Download and Verification**
+
+Participants can download their certificates, which include verification information to help establish certificate authenticity.
+
+## Project Objectives
+
+1. Develop a centralized event management system for the College Local Council of Wesleyan University–Philippines.
+2. Simplify event creation, publishing, and participant registration.
+3. Implement QR-based attendance tracking to improve attendance recording.
+4. Provide real-time attendance monitoring for event organizers.
+5. Automate the generation and distribution of digital certificates.
+6. Reduce manual administrative tasks and improve overall event management efficiency.
+
+## Technology Stack
+
+| Technology | Purpose |
+|---|---|
+| Next.js | Full-stack web application framework |
+| React | User interface development |
+| TypeScript | Type-safe application development |
+| Tailwind CSS | Responsive interface styling |
+| shadcn/ui | Reusable UI components |
+| Supabase | Backend services |
+| PostgreSQL | Relational database |
+| Supabase Auth | Authentication and user access |
+| Supabase Storage | File and image storage |
+| Vercel | Web application deployment |
+| GitHub | Source code management and version control |
+
+## Expected Benefits
+
+**For the College Local Council:** A centralized platform that simplifies event organization, attendance management, and certificate distribution.
+
+**For Event Organizers:** Reduced paperwork, easier event promotion, convenient registration monitoring, and automated attendance and certificate processes.
+
+**For Student Participants:** Easier access to university events, convenient registration, faster attendance check-in, and accessible digital certificates.
+
+## Project Status
+
+The EventHub core MVP has been implemented, including authentication, role-based dashboards, event management, registration QR sharing, QR-based attendance, digital certificates, and basic reporting.
+
+Final email authentication validation, production configuration, real-device testing, and deployment preparation remain in progress.
+
+---
+
+**EventHub — Simplifying University Event Management Through QR Technology and Digital Automation.**
