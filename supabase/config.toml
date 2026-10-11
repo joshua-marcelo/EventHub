@@ -176,8 +176,8 @@ refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
 enable_signup = true
 # Allow/disallow anonymous sign-ins to your project.
-# EventHub: on — attendance station devices sign in anonymously (SYSTEM_SPEC §9.6, D-013).
-enable_anonymous_sign_ins = true
+# EventHub: off — anonymous sign-ins are not used (D-019). Keep disabled in every environment.
+enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.

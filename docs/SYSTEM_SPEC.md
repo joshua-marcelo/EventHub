@@ -4,6 +4,7 @@
 
 Status: **REVISION 2 — APPROVED (2026-10-11).** Revision 1 was approved on 2026-10-10 and Phases 0–1 were built from it. Revision 2 records the design review of 2026-10-11 and was approved by the project team the same day, including the final consistency-review fixes (DECISIONS.md D-009 – D-016). Nothing new in this revision is implemented yet.
 **Amendment A1 — Event Registration QR Sharing: APPROVED (2026-10-11)** with P-26 modified (limited public preview). Adds §7.5 and touches §2, §3, §6, §7.4, §9.3, §11, §12, §13, §16, §18, §19 and §20 (P-24 – P-26; DECISIONS.md D-017).
+**Amendment A2 — Attendance Display Mode: APPROVED (2026-10-11).** The organizer's own signed-in session shows the attendance QR and live feed; the anonymous station sign-in and pairing workflow are removed and anonymous sign-ins stay disabled. Touches §1, §2, §3, §5, §6, §9, §11, §12–§16, §18–§22 (P-27 – P-31; DECISIONS.md D-019, D-020). It also states explicitly that events need no admin approval (P-30) and lets an admin cancel a single published event with an audited reason (P-31).
 Companion documents: [PLAN.md](./PLAN.md) (build order, phases, verification), [DECISIONS.md](./DECISIONS.md) (decisions log).
 
 ### Markers used in this document
@@ -14,7 +15,7 @@ Companion documents: [PLAN.md](./PLAN.md) (build order, phases, verification), [
 | **[DEFERRED]** | Approved as a later, optional item; not part of the MVP build. |
 | **[CLIENT]** | Depends on the client (CLC / university). Not assumed approved. The design lets the answer be added later, usually without schema changes. |
 
-The decision record (P-01 – P-26) and all client items are in §20.
+The decision record (P-01 – P-31) and all client items are in §20.
 
 ---
 
@@ -35,7 +36,7 @@ The decision record (P-01 – P-26) and all client items are in §20.
 
 ## 1. System Overview
 
-EventHub lets students of Wesleyan University–Philippines discover and register for council events, check themselves in by scanning a rotating QR code at an attendance station, and receive verifiable digital certificates.
+EventHub lets students of Wesleyan University–Philippines discover and register for council events, check themselves in by scanning a rotating QR code shown on the organizer's attendance display, and receive verifiable digital certificates.
 
 Core principles:
 
@@ -43,7 +44,7 @@ Core principles:
 2. **The database is the authority.** Authorization is enforced by PostgreSQL Row Level Security and `SECURITY DEFINER` functions. Next.js route guards and the server-side Data Access Layer improve UX and add a second check; they never replace RLS.
 3. **State machines live in the database.** Status transitions happen only through database functions (RPCs) that validate them. Clients never write status or role columns.
 4. **Store facts, derive the rest.** "Registration open", "ongoing", "absent", report totals and eligibility are computed, not stored.
-5. **Self-service attendance with organizer oversight.** A valid scan of the station's rotating QR records attendance immediately. Organizers review risk flags and can revoke records. Certificates follow the event's attendance policy.
+5. **Self-service attendance with organizer oversight.** A valid scan of the rotating QR on the organizer's attendance display records attendance immediately. Organizers review risk flags and can revoke records. Certificates follow the event's attendance policy.
 6. **Verified email, self-declared identity.** Every account must confirm its email address before using the app, which proves control of the inbox. It does **not** prove university enrollment: student IDs and names are self-declared. Uniqueness, identity locks, device signals, disputes and revocation reduce impersonation and proxy attendance but do not eliminate them.
 
 ---
@@ -57,7 +58,6 @@ Core principles:
 | Participant | Implicit: every confirmed account with a `profiles` row | Public sign-up + email confirmation + profile completion | `/dashboard` |
 | Organizer | `profiles.organizer_status = 'active'` | Participant applies; an Admin approves | `/organizer` |
 | Admin | `profiles.is_admin = true` | Set by the maintainer via SQL on an existing, email-confirmed account. **Never** through the UI or sign-up | `/admin` |
-| Station device | `attendance_stations` row bound to an anonymous Supabase user | Organizer pairs a device with a one-time code | `/station/[eventId]` |
 
 - **No public organizer or admin sign-up.** Sign-up always creates a Participant. Role columns (`is_admin`, `organizer_status`, `organizer_since`) are not writable by any client role, and `handle_new_user()` never reads roles from sign-up metadata.
 - `organizer_status` values: `none`, `active`, `suspended` (admin can reinstate), `revoked` (must apply again).
@@ -66,7 +66,7 @@ Core principles:
 - An approved organizer keeps full participant access and may register for events they do **not** own. Nobody may register for their own event.
 - **Admin provisioning procedure:** the person signs up and confirms their email like everyone else; the maintainer verifies the person's identity outside the system, then runs a documented SQL statement on the production database that sets `is_admin = true` and writes an `admin.granted` audit entry. Removing admin access is the reverse procedure. At least **two** admin accounts exist so that an admin's own organizer application can be reviewed by another admin. Who the admins are is **[CLIENT]**.
 - **Admins and the student profile:** an admin (for example a faculty adviser) is not forced through student onboarding and can use the Admin Dashboard without a complete profile. Participant actions (registering, applying, scanning) still require a complete student profile.
-- **Station device:** an anonymous Supabase user created on the station laptop, bound to one event by a pairing code. It can only fetch QR tokens and read that event's check-in feed (§9.6). It is not a user role and has no dashboard navigation.
+- **Attendance Display Mode** (§9.6) is a full-screen view of the Organizer Dashboard, shown by the organizer's own session. It is not a role and adds no permissions. Anonymous sign-ins are disabled (D-019).
 - **Public visitor (no session):** can open the limited preview of public events at `/events/{id}` (§7.5) and the certificate verification pages; nothing else.
 
 ### 2.2 Dashboards and switching
@@ -79,24 +79,24 @@ Core principles:
 
 ### 2.3 Permission matrix
 
-| Capability | Participant | Organizer (active) | Organizer (suspended/revoked) | Admin | Station device |
-|---|---|---|---|---|---|
-| Manage own profile | ✓ | ✓ | ✓ | ✓ | — |
-| Browse/search published events | ✓ | ✓ | ✓ | ✓ | — |
-| Register / cancel own registration (not own events) | ✓ | ✓ | ✓ | ✓ (with complete profile) | — |
-| Scan attendance QR | ✓ | ✓ | ✓ | ✓ (with complete profile) | — |
-| View/download own certificates | ✓ | ✓ | ✓ | ✓ | — |
-| Apply for organizer access | ✓ (status `none` or `revoked`, no pending application) | — | revoked only | ✓ (reviewed by another admin) | — |
-| Create/edit/publish own events | — | ✓ | — | — | — |
-| Manage registrations, attendance sessions, stations, flags, certificates of own events | — | ✓ | read-only + exports | — | — |
-| Show QR + read check-in feed of one paired event | — | — | — | — | ✓ |
-| Review organizer applications; suspend/reinstate/revoke organizers | — | — | — | ✓ | — |
-| Manage colleges, programs, event categories | — | — | — | ✓ | — |
-| Resolve student-ID disputes; identity flags | — | — | — | ✓ | — |
-| Transfer event ownership (audited) | — | — | — | ✓ | — |
-| View system overview | — | — | — | ✓ | — |
-| Manage another organizer's event registrations/attendance | — | — | — | ✗ (out of scope) | — |
-| Grant admin | — | — | — | ✗ (maintainer only, SQL) | — |
+| Capability | Participant | Organizer (active) | Organizer (suspended/revoked) | Admin |
+|---|---|---|---|---|
+| Manage own profile | ✓ | ✓ | ✓ | ✓ |
+| Browse/search published events | ✓ | ✓ | ✓ | ✓ |
+| Register / cancel own registration (not own events) | ✓ | ✓ | ✓ | ✓ (with complete profile) |
+| Scan attendance QR | ✓ | ✓ | ✓ | ✓ (with complete profile) |
+| View/download own certificates | ✓ | ✓ | ✓ | ✓ |
+| Apply for organizer access | ✓ (status `none` or `revoked`, no pending application) | — | revoked only | ✓ (reviewed by another admin) |
+| Create/edit/publish own events | — | ✓ | — | — |
+| Manage registrations, attendance sessions and Attendance Display Mode, flags, certificates of own events | — | ✓ | read-only + exports | — |
+| Review organizer applications; suspend/reinstate/revoke organizers | — | — | — | ✓ |
+| Manage colleges, programs, event categories | — | — | — | ✓ |
+| Resolve student-ID disputes; identity flags | — | — | — | ✓ |
+| Transfer event ownership (audited) | — | — | — | ✓ |
+| Cancel a published event when necessary (reason required, audited) | — | own events (§6) | — | ✓ (P-31) |
+| View system overview | — | — | — | ✓ |
+| Manage another organizer's event registrations/attendance | — | — | — | ✗ (out of scope) |
+| Grant admin | — | — | — | ✗ (maintainer only, SQL) |
 
 ---
 
@@ -135,6 +135,7 @@ When all are present, `profiles.is_complete` becomes true and the Participant Da
 - **Expired recovery link:** `/auth/error?reason=link_expired` with "Send a new reset link".
 - **Email change:** not offered in the MVP; the maintainer corrects addresses on request through the Supabase dashboard and records an `account.email_corrected` audit entry. Supabase's secure email change (confirmation to both addresses) can enable self-service later.
 - **Sign out:** POST `/auth/signout`.
+- **Sign out of all devices** (P-29, profile page): `signOut({ scope: 'global' })` revokes every refresh token of the account, for example after a lost or unattended organizer laptop. Already-issued access tokens stay valid until they expire (Supabase default 1 hour).
 
 ### 3.4 Participant journey
 
@@ -144,7 +145,7 @@ When all are present, `profiles.is_complete` becomes true and the Participant Da
 4. **Register** — explicit button. Result: `approved` (automatic mode), `pending` (manual mode), or a clear error.
 5. **Join via a shared link or registration QR** (§7.5): the event's registration link or QR (from Messenger, Facebook, a poster…) opens the event page directly — a limited public preview when signed out, the full page when signed in. Register asks for login/sign-up and onboarding when needed, then returns to the event. Invite codes can also be typed at `/events/join` (signed in). Never auto-registers and never records attendance.
 6. **My Events**: Upcoming / Pending approval / Past / Cancelled-or-rejected, with registration status and attendance (timed in / timed out / absent / revoked).
-7. **Attendance**: at the venue, scan the station QR with the in-app scanner or the phone camera. The result appears on the phone immediately (§9.3). If on-site registration is enabled and the user is not registered, the result offers **Register on-site**, then asks them to scan again.
+7. **Attendance**: at the venue, scan the QR on the organizer's attendance display with the in-app scanner or the phone camera. The result appears on the phone immediately (§9.3). If on-site registration is enabled and the user is not registered, the result offers **Register on-site**, then asks them to scan again.
 8. **My Certificates**: list, preview, download PDF, copy verification link.
 9. **Become an Organizer**: apply, track status, see rejection notes, reapply.
 
@@ -185,18 +186,21 @@ Not collected: home address, birthdate, government IDs, parents' info.
 
 1. **Overview**: total users, active organizers, pending applications, events by status, events this month, open identity disputes.
 2. **Applications**: table by status (default `pending`, oldest first); detail page with applicant profile, fields, documents via 60 s signed URLs, prior applications; **Approve** / **Reject** (reason required).
-3. **Organizers**: users with `organizer_status <> 'none'`; Suspend (reason), Reinstate (from suspended), Revoke (reason, permanent). Suspend/revoke closes the organizer's open attendance sessions and revokes their station devices. The dialog shows the number of affected upcoming events and offers **Transfer ownership**.
+3. **Organizers**: users with `organizer_status <> 'none'`; Suspend (reason), Reinstate (from suspended), Revoke (reason, permanent). Suspend/revoke closes the organizer's open attendance sessions. The dialog shows the number of affected upcoming events and offers **Transfer ownership**.
 4. **Lookups** (`/admin/lookups`): colleges, programs per college, event categories — add, rename, deactivate; never delete. Deactivated items stay on existing records and disappear from pickers. The list contents are **[CLIENT]**.
 5. **Users** (`/admin/users`): search by name, email or student ID.
    - **Resolve student-ID dispute**: clears `student_id` on the holding account (its profile becomes incomplete), sets an **identity flag** with a reason, and lists that account's issued certificates for review by the respective event owners. Audit-logged.
    - **Clear identity flag** with a note. Audit-logged.
    - Deletion/anonymization requests are **not** handled in the UI; they follow the maintainer-assisted procedure in §21.2.
-6. **Transfer event ownership** (from the event's admin view or the organizer dialog): new owner must be an active organizer with no registration for that event; reason required; allowed for any status, including completed; closes open sessions and revokes station devices; previous owner loses access immediately; audit entry `event.ownership_transferred` with old and new owner.
-7. Admins do **not** manage registrations, attendance or certificates of events.
+6. **Transfer event ownership** (from the event's admin view or the organizer dialog): new owner must be an active organizer with no registration for that event; reason required; allowed for any status, including completed; closes open sessions; previous owner loses access immediately; audit entry `event.ownership_transferred` with old and new owner.
+7. **Cancel event (P-31):** from the admin event view, an admin may cancel an individual **published** event when necessary (for example inappropriate, duplicate or unauthorized content). A reason is required. It calls the same `cancel_event` RPC as organizers, so the result is identical: status `cancelled`, open attendance sessions closed, registrations and attendance records kept for history, the event page shows the cancellation notice. The cancellation records `cancelled_by` and writes an `event.cancelled` audit entry with `{ by_admin: true }`; the organizer sees "Cancelled by an administrator" with the reason. Drafts and completed events cannot be cancelled. No certificates exist at that point (they are issued only for completed events).
+8. Admins do **not** approve, edit or publish events, and do not manage registrations, attendance or certificates of events. Admin approval exists only for organizer applications (§4); admin powers over an organizer's events are limited to suspending/revoking the organizer, transferring ownership and cancelling a published event (P-30, P-31).
 
 ---
 
 ## 6. Organizer Flow (Organizer Dashboard `/organizer`)
+
+**No per-event approval (P-30):** admin approval is required only once, for the organizer application (§4). An active organizer then creates, drafts, edits, publishes, shares, cancels and completes their own events, manages registrations and attendance, and generates certificates without any admin review. A published event with `visibility = 'public'` appears in Explore immediately.
 
 1. After approval the Organizer Dashboard is available from the switcher; participant features remain.
 2. **Dashboard**: upcoming own events, pending registration counts, attendance open indicators, flags to review, events awaiting **Mark as completed**, completed events with certificates not yet generated.
@@ -204,7 +208,7 @@ Not collected: home address, birthdate, government IDs, parents' info.
 4. **Event workspace** tabs: Overview · Registrations · Attendance · Certificates · Reports · Settings.
 5. **Share** (§7.5): registration link (copy), registration QR (preview, download PNG/SVG, copy image, share via the device's share sheet), invite code with short link. Available once the event is published.
 6. **Registrations**: review, approve/reject (single and bulk).
-7. **Attendance**: settings (policy, lead time, on-site registration) in event settings; on the day: open a time-in session, **pair station devices** with a one-time code, watch the live feed, review ⚠ flags, approve on-site registrants (manual mode), open the time-out session if required, close. Manual time-in/time-out and revocation with reasons.
+7. **Attendance**: settings (policy, lead time, on-site registration) in event settings; on the day: **Start Attendance** (opens a time-in session and Attendance Display Mode, §9.6), watch the live feed, review ⚠ flags, approve on-site registrants (manual mode), open the time-out session if required, close. Manual time-in/time-out and revocation with reasons.
 8. **Mark as completed** after the event.
 9. **Certificates**: template, field placement, preview, Generate Certificates; review list for identity-flagged holders.
 10. **Reports**: summary, CSV exports, printable report.
@@ -251,7 +255,7 @@ Draft checks are enforced by Zod; publish checks again in `publish_event`.
 | `completed` | Finished. No new attendance sessions. Certificates may be generated. Read-only except certificate settings and **audited attendance corrections** (§9.4) for registrations that have no certificate yet. |
 | `cancelled` | Will not happen. Read-only. No attendance or certificates. |
 
-Transitions: `draft → published`, `draft → deleted`, `published → completed` (only after `starts_at`), `published → cancelled` (reason). Completed and cancelled are terminal. No `archived` status.
+Transitions: `draft → published`, `draft → deleted`, `published → completed` (only after `starts_at`), `published → cancelled` (reason; by the owner as an active organizer, or by an admin — P-31). Completed and cancelled are terminal. No `archived` status.
 
 ### 7.3 Event phase (derived, never stored)
 
@@ -283,7 +287,7 @@ A static, shareable entry point to one event. It is separate from the rotating a
 - Canonical registration URL: `{NEXT_PUBLIC_APP_URL}/events/{eventId}`. The event id is a UUID that never changes, so the link and every printed QR stay valid for the life of the event, including after edits, ownership transfer and completion.
 - The registration QR encodes exactly that URL — no token, code or parameter. Anyone may share it; possessing it confers no permission.
 - Short link `{APP_URL}/e/{invite_code}` and the typed code at `/events/join` remain as alternatives (for announcements and slides). Both resolve to the same canonical URL. The invite code is generated at creation and never changes (P-25).
-- No new table or column is needed: the URL is derived from `events.id`; the QR is rendered on the client with the existing `qrcode` library through a shared helper `lib/qr.ts` (also used by the station QR and the certificate verification QR). The only database addition is the read-only public preview function below (P-26).
+- No new table or column is needed: the URL is derived from `events.id`; the QR is rendered on the client with the existing `qrcode` library through a shared helper `lib/qr.ts` (also used by the attendance display QR and the certificate verification QR). The only database addition is the read-only public preview function below (P-26).
 
 **Share panel (Event workspace → Overview)**
 - Shown when the event is `published`. Draft: "Publish the event to get a shareable link." Cancelled: "This event was cancelled; the link shows a cancellation notice." Completed: link still works and shows the event as ended.
@@ -310,7 +314,6 @@ A static, shareable entry point to one event. It is separate from the rotating a
    - `cancelled`: details with a "This event was cancelled" notice and the reason; no register action.
    - `completed`: "This event has ended"; no register action.
    - `draft` of another organizer, an unknown id, or a malformed id: one neutral page, "This event isn't available", identical in all three cases so that drafts are not revealed. The owner sees their own draft with a "Draft — not visible to participants" banner.
-   - Anonymous station sessions are redirected to `/station` (§16.2).
 4. **Registering** is always an explicit button press by a signed-in user with a complete profile, calling `register_for_event`, which re-checks published status, registration window (or on-site rule), capacity, approval mode, profile completeness and the own-event rule (§8). Nothing on the page registers automatically.
 5. The `/e/{code}` short link and `/events/join` keep requiring login (codes are resolved by `get_event_by_invite_code` for permanent users only); the printed QR always uses the canonical URL, so posters get the public preview.
 
@@ -372,7 +375,7 @@ Rules (all enforced in RPCs):
 - **No time-in after time-out has started:** once any time-out session has been opened for the event, `open_attendance_session(…, 'time_in')` is refused (`time_out_started`). Late arrivals after that point can only be added by an audited manual time-in.
 - A closed time-in session may be followed by another time-in session (accidental close) as long as no time-out session has been opened. A closed time-out session may be followed by another time-out session. There is still exactly one attendance record per registration.
 - **Completion warning:** before `complete_event`, the dialog shows open flags and, for `time_in_and_out` events, the number of attendees without a time-out ("Policy requires time-out; N attendees have none. Open time-out or record manual time-outs first."). Completion is allowed after confirmation.
-- Completing or cancelling the event, transferring ownership, and suspending/revoking the organizer close open sessions and revoke station devices.
+- Completing or cancelling the event, transferring ownership, and suspending/revoking the organizer close open sessions.
 - Multi-day or AM/PM attendance remains out of scope.
 
 ### 9.2 Dynamic QR token
@@ -382,7 +385,7 @@ Rules (all enforced in RPCs):
 - Token = `base64url( session_id[16] ‖ w[4] ‖ HMAC-SHA256(secret, session_id ‖ w)[first 16] )`.
 - QR payload: `{NEXT_PUBLIC_APP_URL}/scan?t=<token>`.
 - A token is accepted **only during its own window and the next one** (≤ 60 s). A token for a future window is rejected until that window begins.
-- `station_get_qr(event_id)` returns tokens for the **current window and the next two** (`{ token, valid_from, valid_until }[]`) plus the server time, so the station can keep displaying a valid code through a network drop of up to ~90 s. The secret never leaves the database. Closing the session invalidates every token immediately (check 3 below).
+- `get_attendance_qr(event_id)` (event owner, active organizer, open session) returns tokens for the **current window and the next two** (`{ token, valid_from, valid_until }[]`) plus the server time, so the attendance display can keep showing a valid code through a network drop of up to ~90 s. The secret never leaves the database. Closing the session invalidates every token immediately (check 3 below).
 - All time checks use the database clock.
 
 ### 9.3 Scan
@@ -423,7 +426,7 @@ Owner + active organizer; every action requires a reason or note and is audit-lo
 
 **When corrections are allowed:** while the event is `published`, and **after completion** for any registration that has no certificate yet. This is how flags are reviewed and resolved before Generate Certificates. Not allowed on cancelled events or for registrations that already hold a certificate (revoke the certificate first).
 
-**Reasons are private:** reasons and notes are stored only in `audit_logs` metadata, never on `attendance_records`, so nothing free-text is readable by station devices (§9.6).
+**Reasons are private:** reasons and notes are stored only in `audit_logs` metadata, never on `attendance_records`, so no free text reaches the attendance display feed (§9.6).
 
 Removed from Revision 1: `confirm_attendance`, `dismiss_attendance`, the pending state, the station focus card and "Not this person". On-site approvals reuse `decide_registrations` (no separate RPC).
 
@@ -432,23 +435,40 @@ Removed from Revision 1: `confirm_attendance`, `dismiss_attendance`, the pending
 Stored: `present`, `revoked`. Each record holds `time_in_at` and (if applicable) `time_out_at`.
 Derived: **absent** = approved registration with no present record after completion; **incomplete** = time-in without time-out under `time_in_and_out`.
 
-### 9.6 Attendance station
+### 9.6 Attendance Display Mode (Amendment A2)
 
-**Pairing (no organizer credentials on the station device):**
-1. Organizer, in the Attendance tab on their own device, clicks **Add station** → `create_station_pairing(event_id, label)` returns an 8-character code valid for **5 minutes**, single use (stored hashed).
-2. On the station laptop, `/station` signs in **anonymously** (CAPTCHA) using a **separate auth cookie name**, so an organizer session in the same browser is not replaced. The operator types the code → `claim_station_pairing(code)` binds the anonymous user to the event. The grant expires at the event's latest possible `closes_at`.
-3. If the station browser also holds an organizer session, the station shows: "An organizer is signed in on this device. Sign out before leaving it unattended."
-4. The organizer sees paired stations (label, last seen) and can **revoke** any. Transfer, cancel, completion, suspension and revocation revoke all.
+The attendance QR and live feed are shown by the **organizer's own signed-in session**. There is no separate station login, pairing code or anonymous user (D-019).
 
-**Station layout (laptop 1366×768 and tablet landscape):**
+**Flow**
+1. The organizer signs in and opens Organizer Dashboard → **My Organized Events** → the event → **Attendance** (the organizer-side "My Events"; the participant page of the same name is unrelated).
+2. **Start Attendance** opens a time-in session (§9.1) and, after a one-time reminder ("Anyone using this computer while it is unlocked can act as you. Stay with it and lock it (Windows+L) when you step away."), switches to **Attendance Display Mode** at `/organizer/events/{eventId}/attendance/display`. The route uses the same guard as the event workspace (signed in, event owner, active organizer).
+3. The laptop — or, preferably, an external monitor, TV or projector connected to it — faces the participants. Participants scan with their own phones (§9.3).
+4. The right panel updates in real time as attendance is recorded.
+5. **Exit display** returns to the Attendance tab. Opening the time-out session, closing the session, reviewing flags and corrections all happen there; the display itself has no management controls besides Exit (P-27).
+6. The organizer may open the display on more than one of their own signed-in devices; each subscribes independently and none of them writes anything.
+
+**Layout** (laptop 1366×768, tablet landscape, external screen):
 - **Left panel:** event name; large rotating QR (≥ 320 px); session status (Time-in open / Time-out open / Closed) and countdown ring; short participant instructions ("Open your camera or EventHub → Scan").
 - **Right panel:** realtime feed of successful check-ins, newest first with a brief highlight (respects `prefers-reduced-motion`): profile photo, name, college, status (Timed in / Timed out), ⚠ marker for flagged records. Counters: Present / Approved, Timed out, Flagged.
-- **Never shown:** student IDs, emails, programs/year, registration errors, revocation reasons or organizer notes. Failed scans show details only on the participant's phone.
-- **Photos** are loaded through signed URLs that expire after **10 minutes** (the station re-signs as needed), so a revoked or expired station cannot keep using old links for long.
-- **Data the station can read at all:** its own event's sessions and `attendance_records` rows (ids, times, methods, status, flag — no free text), and through `station_feed` the name, college and photo path of people with a present record. It cannot read `events`, `profiles`, registrations, device signals, secrets, audit logs or any other event. Event title and session state come from `station_get_qr`.
-- The privacy notice states that check-ins are shown on the station screen (photo, name, college).
-- Connection indicator (Live / Reconnecting / Polling); states for unpaired, session closed, grant revoked or expired.
-- Session controls (open/close time-in, open time-out) are on the organizer's own device, not on the station.
+- **Never shown:** student IDs, emails, programs/year, registration errors, revocation reasons or organizer notes, navigation, menus, registrant tables, exports or management buttons. Failed scans show details only on the participant's phone.
+- **Photos** use signed URLs that expire after **10 minutes** (re-signed as needed), because the screen faces the public.
+- Uses the browser Fullscreen API when available; leaving fullscreen keeps the display view. Connection indicator (Live / Reconnecting / Polling); states for session not open, closed or expired.
+- The privacy notice states that check-ins are shown on the attendance display (photo, name, college).
+
+**Data access:** the display uses only the organizer's existing permissions and two owner-only RPCs: `get_attendance_qr(event_id)` (current + 2 tokens, server time, event title, session state) and `get_attendance_feed(event_id, since)` (display fields only), refreshed by realtime changes on `attendance_records` (owner RLS). The UI renders only these fields even though the organizer session could read more.
+
+**Risk: an unattended, signed-in organizer laptop (accepted and documented).**
+The display runs inside a fully authenticated organizer session. Fullscreen, hidden navigation and the absence of buttons are presentation only; **they are not a security boundary**. Anyone who reaches the keyboard or trackpad can leave fullscreen, open a new tab or developer tools, and act as the organizer: record manual time-ins/time-outs, revoke attendance or clear flags, approve or reject registrations, read registrants' profiles, photos and student IDs, export CSVs, edit or cancel the event, and use the organizer's own participant account. The application cannot tell this apart from the organizer.
+
+Mitigations (procedural, plus small UI aids):
+1. **The organizer stays with the laptop** while it is signed in. Organizers never share their password with volunteers (co-organizer accounts remain out of scope).
+2. **Preferred setup:** the laptop stays with the organizer and the display is mirrored or extended to an external screen facing participants, so participants never touch the input devices. Otherwise, place the laptop so participants see the screen while the keyboard and trackpad stay on the organizer's side of the table.
+3. **Stepping away:** lock the operating system (Windows+L / Control+Command+Q). Exiting fullscreen is not a lock.
+4. **After the event:** exit the display, close the session, and sign out on any shared or borrowed computer.
+5. **Lost or stolen laptop:** the organizer uses **Sign out of all devices** from another device (P-29). Refresh tokens are revoked immediately; an already-issued access token stays valid until it expires (Supabase default 1 hour).
+6. **Traceability:** every corrective action is audit-logged with the organizer's id. This makes misuse visible afterwards; it does not prevent it.
+
+Residual risk: misuse of an unlocked, unattended organizer session cannot be prevented by the application. Re-authentication for sensitive actions, inactivity time-outs and a separate restricted station login are out of scope for the MVP (the restricted station login was Revision 2's design and was removed by D-019).
 
 ### 9.7 Security formula and residual risk
 
@@ -538,10 +558,12 @@ My Certificates: list, inline preview, download `EventHub-Certificate-{number}.p
 14. Certificates follow §10.3.
 15. Registration links, registration QR codes and invite codes only open event details; registration is always explicit and attendance is never recorded from them. They never bypass visibility, status, window, capacity, approval or eligibility rules.
 16. Student ID and profile photo lock while an approved registration for a not-yet-ended published event exists; names stay editable.
-17. Station devices act only through an active, unexpired grant for one event.
-18. Anonymous users can never act as participants, organizers or admins.
+17. Attendance Display Mode runs in the event owner's own organizer session; it adds no permissions and is not a security boundary (§9.6).
+18. Anonymous sign-ins are disabled; the database still refuses anonymous sessions (defense in depth, D-019).
 19. Event ownership changes only through the admin transfer RPC.
 20. All timestamps `timestamptz`; display timezone Asia/Manila.
+21. Events need no admin approval: an active organizer publishes their own event, and public published events appear in Explore immediately (P-30).
+22. An admin may cancel a published event with a required reason through the same `cancel_event` RPC; the action is audit-logged and records `cancelled_by` (P-31).
 
 ---
 
@@ -598,7 +620,7 @@ create type registration_channel      as enum ('online','onsite');          -- N
 | `identity_flagged_at`, `identity_flag_reason` | | **NEW**, admin RPCs only |
 | `created_at`, `updated_at` | | |
 
-- Created by `handle_new_user()` on `auth.users` insert. **Change:** skips anonymous users (`new.is_anonymous`), so station devices never get a profile.
+- Created by `handle_new_user()` on `auth.users` insert. **Change (Phase 1b):** skips anonymous users (`new.is_anonymous`). Anonymous sign-ins are disabled (D-019); the check stays as defense in depth.
 - Column UPDATE grants for `authenticated`: names, suffix, `student_id`, `college_id`, `program_id`, `year_level`, `avatar_path`.
 - Triggers: identity lock on `student_id` and `avatar_path` (§11 rule 16; names stay editable); `student_id` locked once the user holds a certificate. The admin dispute RPC bypasses both via a transaction-local setting.
 
@@ -648,6 +670,7 @@ create type registration_channel      as enum ('online','onsite');          -- N
 | `status` | event_status NOT NULL default `draft` | RPC-only |
 | `published_at`, `completed_at`, `cancelled_at` | timestamptz NULL | |
 | `cancellation_reason` | text NULL | required when cancelled |
+| `cancelled_by` | uuid NULL FK → profiles | **NEW (P-31)**; the owner or the admin who cancelled; set with `cancelled_at` |
 | `search` | tsvector GENERATED (title A, venue B, description C, `simple`) | |
 | `created_at`, `updated_at` | | |
 
@@ -705,15 +728,12 @@ No policies; all privileges revoked from `anon`/`authenticated`.
 | `revoked_by`, `revoked_at` | | CHECK consistent with `status` |
 | `created_at`, `updated_at` | | |
 
-**No free-text columns:** revocation reasons, manual time-in/out reasons and flag notes are written only to `audit_logs.metadata` (station devices can read this table's rows of their event).
+**No free-text columns:** revocation reasons, manual time-in/out reasons and flag notes are written only to `audit_logs.metadata` (participants read their own row; the attendance display feed returns display fields only).
 
 Indexes `(event_id, time_in_at desc)`, `(event_id) WHERE flag IS NOT NULL AND flag_resolution IS NULL`, `(user_id)`. In the `supabase_realtime` publication. RPC-only writes.
 
 #### `attendance_device_signals` — NEW
 `id bigint identity`, `event_id`, `record_id`, `user_id`, `kind attendance_session_kind`, `device_hash text NOT NULL`, `created_at`. Index `(event_id, device_hash)`. RLS on, **no policies, no client grants** (read only inside RPCs). Purged 30 days after the event is completed (period confirmed under K-07).
-
-#### `attendance_stations` — NEW
-`id uuid`, `event_id FK`, `label text` (1–40), `created_by uuid`, `pairing_code_hash text`, `pairing_expires_at timestamptz`, `station_user_id uuid NULL` (anonymous auth user, set on claim), `claimed_at`, `expires_at`, `revoked_at`, `revoked_by`, `last_seen_at`, `created_at`. Unique active grant per `station_user_id`. Select: event owner. Writes: RPC only.
 
 #### `certificate_templates` — unchanged
 | Column | Type | Notes |
@@ -757,7 +777,7 @@ Indexes `(user_id, issued_at desc)`, `(event_id)`; RPC-only writes. Eligibility 
 | `event_invites` | Excluded | One reusable `invite_code` covers code, QR, link. |
 | `notifications` | Excluded | No notification center; Auth emails only. |
 | `generated_certificates` storage | Excluded | PDFs rendered on demand. |
-| `event_staff` / co-organizers | Excluded | Station devices cover door duty; ownership transfer covers handover. |
+| `event_staff` / co-organizers | Excluded | The organizer runs Attendance Display Mode in their own session; ownership transfer covers handover. |
 | `organizations` | Excluded | Organization name stays free text on the application. |
 | Scan attempt log | Excluded | Errors shown only on the participant's phone. |
 | Stored counters | Excluded | Derived with indexed counts. |
@@ -765,13 +785,12 @@ Indexes `(user_id, issued_at desc)`, `(event_id)`; RPC-only writes. Eligibility 
 ### 12.4 Relationships
 
 ```
-auth.users 1─1 profiles (permanent users only)      auth.users 1─0..1 attendance_stations (anonymous station user)
+auth.users 1─1 profiles (permanent users only)
 colleges 1─* programs        profiles *─1 colleges, *─1 programs (composite FK keeps program within college)
 profiles 1─* organizer_applications (applicant / reviewer)
 profiles 1─* events (organizer)       events *─1 event_categories, *─1 colleges (host)
 events 1─* event_registrations *─1 profiles
 events 1─* attendance_sessions 1─1 attendance_session_secrets
-events 1─* attendance_stations
 event_registrations 1─0..1 attendance_records 1─* attendance_device_signals
 events 1─* certificate_templates
 event_registrations 1─0..1 certificates *─1 certificate_templates ; certificates *─1 attendance_records
@@ -779,11 +798,11 @@ event_registrations 1─0..1 certificates *─1 certificate_templates ; certific
 
 ### 12.5 RPC surface
 
-All `SECURITY DEFINER`, `SET search_path = ''`, schema-qualified, caller checks first, `EXECUTE` granted only to the intended role. Every RPC except the station RPCs and the two public read functions (`verify_certificate`, `get_public_event_preview`) starts with `private.is_permanent_user()`.
+All `SECURITY DEFINER`, `SET search_path = ''`, schema-qualified, caller checks first, `EXECUTE` granted only to the intended role. Every RPC except the two public read functions (`verify_certificate`, `get_public_event_preview`) starts with `private.is_permanent_user()` (one-line defense in depth while anonymous sign-ins are disabled, D-019).
 
 | Function | Caller | Purpose |
 |---|---|---|
-| `is_admin()`, `is_active_organizer()`, `is_permanent_user()`, `owns_event(id)`, `can_view_profile(id)`, `is_station_for(event_id)` | internal / RLS | Helpers (`STABLE`) |
+| `is_admin()`, `is_active_organizer()`, `is_permanent_user()`, `owns_event(id)`, `can_view_profile(id)` | internal / RLS | Helpers (`STABLE`) |
 | `accept_privacy_notice(version)` | authenticated | Onboarding consent |
 | `event_phase(events)` | authenticated | Derived phase |
 | `profile_full_name(profiles)` | authenticated | Display name (exists; computed field) |
@@ -792,14 +811,13 @@ All `SECURITY DEFINER`, `SET search_path = ''`, schema-qualified, caller checks 
 | `review_organizer_application`, `set_organizer_status` | admin | |
 | `resolve_student_id_dispute(user_id, reason)`, `clear_identity_flag(user_id, note)` | admin | Disputes (deletion requests follow the maintainer procedure, §21.2) |
 | `transfer_event_ownership(event_id, new_owner_id, reason)` | admin | Audited handover |
-| `publish_event`, `cancel_event`, `complete_event` | owner, active organizer | `regenerate_invite_code` removed (P-25) |
+| `publish_event`, `complete_event` | owner, active organizer | `regenerate_invite_code` removed (P-25) |
+| `cancel_event(id, reason)` | owner as active organizer, **or admin** (P-31) | Published events only; reason required; closes open sessions; sets `cancelled_by`; audit `event.cancelled` with `by_admin` |
 | `get_event_by_invite_code(code)` | permanent authenticated | Resolves a typed code or `/e/{code}` to the event id for published, cancelled or completed events; unknown code → `not_found` |
 | `register_for_event(event_id)`, `cancel_registration(event_id)` | authenticated | Includes on-site branch |
 | `decide_registrations`, `approve_all_pending` | owner | Also used for on-site approvals |
 | `open_attendance_session(event_id, kind)`, `close_attendance_session(session_id)` | owner | |
-| `create_station_pairing(event_id, label)`, `revoke_station(station_id)` | owner | |
-| `claim_station_pairing(code)` | anonymous station user only | |
-| `station_get_qr(event_id)`, `station_feed(event_id, since)` | active station of the event (owner may also call) | Tokens (current + 2), display fields |
+| `get_attendance_qr(event_id)`, `get_attendance_feed(event_id, since)` | owner, active organizer | Attendance Display Mode: tokens (current + 2) with server time; display fields only (§9.6) |
 | `submit_attendance_scan(token, device_id, expected_event_id)` | permanent authenticated | |
 | `manual_time_in`, `manual_time_out`, `revoke_attendance`, `resolve_attendance_flag` | owner | Also after completion until a certificate exists (§9.4) |
 | `get_attendance_list(event_id)` | owner (suspended: read-only) | Attendance tab data incl. reasons from `audit_logs` |
@@ -836,7 +854,7 @@ The database holds no rows, so these are made by a new corrective migration (PLA
 4. Status and role columns are never written through table policies; column grants restrict direct updates.
 5. No service-role key in the Next.js runtime.
 6. Realtime `postgres_changes` honors the same SELECT policies.
-7. **Anonymous users** (station devices) share the `authenticated` role. Every table that stations must not read has a **restrictive** policy `using ((select private.is_permanent_user()))`; every RPC except station RPCs and the public read functions (`verify_certificate`, `get_public_event_preview`) refuses them.
+7. **Anonymous users:** anonymous sign-ins are **disabled** (D-019). The Phase 1b guard stays as defense in depth: `profiles` and `audit_logs` carry a **restrictive** `is_permanent_user()` policy, and every RPC except the public read functions (`verify_certificate`, `get_public_event_preview`) refuses anonymous callers. New tables do not need their own restrictive policy while anonymous sign-ins stay disabled; Phase 12 verifies the setting in both environments.
 8. Unconfirmed users never receive a session, so no policy needs to handle them.
 
 ### 13.2 Policy table
@@ -848,11 +866,10 @@ The database holds no rows, so these are made by a new corrective migration (PLA
 | `organizer_applications` | own; admin | RPC | RPC | — |
 | `events` | non-draft for permanent users; own; admin | active organizer, own, `draft` | owner + active organizer; content columns; guard | owner, `draft` |
 | `event_registrations` | own; event owner | RPC | RPC | — |
-| `attendance_sessions` | event owner; approved registrants of the event; active station of the event | RPC | RPC | — |
+| `attendance_sessions` | event owner; approved registrants of the event | RPC | RPC | — |
 | `attendance_session_secrets` | none | none | none | none |
-| `attendance_records` | own; event owner; active station of the event (table has no free-text columns) | RPC | RPC | — |
+| `attendance_records` | own; event owner (table has no free-text columns) | RPC | RPC | — |
 | `attendance_device_signals` | none | RPC | — | job |
-| `attendance_stations` | event owner | RPC | RPC | — |
 | `certificate_templates` | event owner | RPC | RPC | — |
 | `certificates` | own (non-revoked for download); event owner | RPC | RPC | — |
 | `audit_logs` | admin | RPC | — | — |
@@ -861,7 +878,7 @@ Unlisted events are hidden from Explore but readable by any permanent user with 
 
 ### 13.3 RLS testing
 
-Every policy and RPC is tested by impersonating users with `set local role authenticated; set local request.jwt.claims = '{"sub":"…","is_anonymous":…}'`: owner allowed, other organizer denied, participant denied, suspended organizer denied for writes, admin allowed where intended, **anonymous station user denied everywhere except its own event's station surface**.
+Every policy and RPC is tested by impersonating users with `set local role authenticated; set local request.jwt.claims = '{"sub":"…","is_anonymous":…}'`: owner allowed, other organizer denied, participant denied, suspended organizer denied for writes, admin allowed where intended, anonymous claims denied (defense in depth).
 
 ---
 
@@ -869,7 +886,7 @@ Every policy and RPC is tested by impersonating users with `set local role authe
 
 | Bucket | Access | Path | Read | Write | Limits |
 |---|---|---|---|---|---|
-| `avatars` | Private, signed URLs (1 h; **10 min for stations**) | `{user_id}/{uuid}.{ext}` | owner; event owner via `can_view_profile` (until 30 days after completion/cancellation); admin; **active station of an event where the owner has a present record** | owner folder; new file + update `avatar_path` + delete old; blocked by identity lock | 2 MB; jpeg/png/webp; 512 px |
+| `avatars` | Private, signed URLs (1 h; **10 min on the attendance display**) | `{user_id}/{uuid}.{ext}` | owner; event owner via `can_view_profile` (until 30 days after completion/cancellation); admin | owner folder; new file + update `avatar_path` + delete old; blocked by identity lock | 2 MB; jpeg/png/webp; 512 px |
 | `event-banners` | Public | `{event_id}/{uuid}.{ext}` | public | owner + active organizer | 5 MB; jpeg/png/webp |
 | `organizer-requirements` | Private, signed URLs (60 s) | `{user_id}/{uuid}.{ext}` | owner; admin | owner folder, insert only | 5 MB; pdf/jpeg/png |
 | `certificate-templates` | Private | `{event_id}/{uuid}.{ext}` | event owner; holders of a non-revoked certificate of the event | owner + active organizer, insert only | 10 MB; png/jpeg |
@@ -882,7 +899,7 @@ Avatars are private (student photos are personal data); banners are public marke
 
 | Use | Mechanism | Subscriber | Fallback |
 |---|---|---|---|
-| Station feed | `postgres_changes` on `attendance_records` (INSERT + UPDATE), filter `event_id=eq.{id}`; each change triggers `station_feed(event_id, since)` for display fields, then signed avatar URLs | Station (RLS: active grant) | "Reconnecting" → poll `station_feed` every 3 s; full refetch on resubscribe |
+| Attendance Display feed | `postgres_changes` on `attendance_records` (INSERT + UPDATE), filter `event_id=eq.{id}`; each change triggers `get_attendance_feed(event_id, since)` for display fields, then signed avatar URLs | Organizer (RLS: owner) | "Reconnecting" → poll `get_attendance_feed` every 3 s; full refetch on resubscribe |
 | Organizer Attendance tab | Same channel | Owner | Manual refresh |
 
 No participant realtime (results are final on the phone). Not realtime: Explore, registrations table, dashboards, reports, certificates. `postgres_changes` is sufficient at thesis scale; Broadcast-from-database is a future optimization.
@@ -924,7 +941,7 @@ app/
     become-organizer/page.tsx
     organizer/                        Organizer Dashboard (guard: requireOrganizer({ allowInactive: true }))
       layout.tsx, page.tsx, events/page.tsx, events/new/page.tsx
-      events/[eventId]/ layout.tsx, page.tsx, registrations/, attendance/, certificates/, reports/ (+ export/route.ts), settings/
+      events/[eventId]/ layout.tsx, page.tsx, registrations/, attendance/ (+ display/ = Attendance Display Mode, full-screen layout without sidebar), certificates/, reports/ (+ export/route.ts), settings/
       reports/page.tsx
     admin/                            Admin Dashboard (guard: requireAdmin() → notFound())
       layout.tsx, page.tsx
@@ -932,15 +949,12 @@ app/
       organizers/page.tsx
       users/page.tsx, users/[userId]/page.tsx
       lookups/page.tsx
-      events/[eventId]/page.tsx       admin event view (ownership transfer only)
-  (station)/
-    station/page.tsx                  anonymous sign-in + pairing code
-    station/[eventId]/page.tsx        full-screen station
+      events/[eventId]/page.tsx       admin event view (ownership transfer, cancel event — P-31)
   e/[code]/route.ts                   invite short link → redirect to /events/[eventId] (login first if needed, `next` kept)
-lib/qr.ts                             shared QR helper (registration, station, certificate QR)
+lib/qr.ts                             shared QR helper (registration, attendance display, certificate QR)
 proxy.ts
 lib/
-  supabase/{server.ts, client.ts, proxy.ts, station-client.ts}   station client uses a separate cookie name
+  supabase/{server.ts, client.ts, proxy.ts}
   auth/dal.ts                         getCurrentUser(), requireUser({ allowIncomplete }), requireOrganizer(), requireAdmin()
   validation/*.ts, events/phase.ts, datetime.ts, attendance/*.ts, certificates/render.ts
   database.types.ts
@@ -949,7 +963,7 @@ supabase/ migrations/, seed.sql, tests/
 
 ### 16.2 Guards and Next.js 16 specifics
 
-- `proxy.ts`: refreshes the session cookie; redirects signed-out users from `(app)`/`(station)/station/[eventId]` to `/login?next=…`, **except** `/events/{uuid}` (public preview, A1); redirects **anonymous** sessions away from `(app)` to `/station`; optimistic only.
+- `proxy.ts`: refreshes the session cookie; redirects signed-out users from `(app)` to `/login?next=…`, **except** `/events/{uuid}` (public preview, A1); treats an anonymous session as signed out (anonymous sign-ins are disabled); optimistic only.
 - DAL (`server-only`): `getCurrentUser()` uses `getClaims()`/`getUser()` and returns `{ id, email, isAnonymous, profile, isAdmin, organizerStatus }`. `requireUser()` refuses anonymous users and sends users with incomplete profiles to `/onboarding` (except pages marked `allowIncomplete`, and admins on `/admin`).
 - Every Server Action and Route Handler calls the DAL; RLS remains the final check.
 - Session-reading components inside `<Suspense>`; layouts never await the session at top level.
@@ -983,13 +997,14 @@ supabase/ migrations/, seed.sql, tests/
 | Event details action | Log in · Complete profile · Opens {date} · Register · Registered · Pending approval · Rejected (reason) · Cancelled — Register again · Full · Registration closed · Cancelled event · Attendance open — Scan · On-site registration open · Completed |
 | Explore | skeletons, empty, no-results, error + retry |
 | Registrations (org) | empty + share CTA, filtered empty, bulk-result summary, capacity bar, on-site badge |
-| Attendance (org) | not yet openable (countdown to lead time), time-in open, time-out open, closed, expired, completed; stations list (last seen, revoke); flags to review; on-site awaiting approval; manual corrections |
-| Station | unpaired; code entry (invalid/expired); waiting; live feed; flagged item; reconnecting/polling; session closed; grant revoked/expired; organizer signed in on this device |
+| Attendance (org) | not yet openable (countdown to lead time), time-in open, time-out open, closed, expired, completed; Start Attendance (reminder dialog); flags to review; on-site awaiting approval; manual corrections |
+| Attendance Display | session not open; time-in open; time-out open; waiting for first scan; live feed; flagged item; reconnecting/polling; session closed or expired; fullscreen unavailable |
 | Scan (participant) | camera permission prompt/denied/no camera/insecure context; scanning; submitting; each §9.3 result; on-site registration path |
 | Certificates (org) | disabled, no template, preview, locked until completed, eligibility counts (missing time-out, flags, identity review), generating, issued list, outdated template, identity review list |
 | Certificates (participant) | none yet; available; revoked |
 | Applications | none, pending, rejected (+ reapply), approved, suspended/revoked |
 | Admin users | dispute resolved; identity flagged; flag cleared |
+| Cancelled event (P-31) | organizer workspace and event page: "Cancelled by an administrator" with the reason when `cancelled_by` is an admin; admin event view: cancel dialog with required reason, disabled for drafts, completed and already-cancelled events |
 | Global | toasts; AlertDialog for destructive actions; field-level errors |
 
 ---
@@ -1003,9 +1018,9 @@ supabase/ migrations/, seed.sql, tests/
 | 3 | Double registration | Unique `(event_id, user_id)`; existing status returned. |
 | 4 | Organizer rejects | `rejected` + optional reason; no re-registration; blocked if an attendance record exists. |
 | 5 | Capacity changed | ≥ approved count; raising does not auto-approve. |
-| 6 | Event cancelled | Reason; terminal; sessions closed; stations revoked; no certificates. |
+| 6 | Event cancelled (by organizer or admin) | Reason; terminal; sessions closed; registrations and attendance records kept; no certificates (none exist before completion). Admin cancellations are audit-logged and shown as "Cancelled by an administrator" (P-31). |
 | 7 | Participant becomes organizer | Same account; Organizer Dashboard appears in the switcher. |
-| 8 | Organizer suspended/revoked | Write RPCs refuse; read-only workspace; sessions closed; stations revoked; admin may transfer ownership. Auto-cancelling upcoming events: not done (C14). |
+| 8 | Organizer suspended/revoked | Write RPCs refuse; read-only workspace; sessions closed; admin may transfer ownership. Auto-cancelling upcoming events: not done (C14). |
 | 9 | Expired QR | `expired_qr`; camera stays open. |
 | 10 | QR from another event | `not_registered` or `wrong_event`. |
 | 11 | Attendance not open | No token exists; Scan page shows "Attendance hasn't started" for today's events. |
@@ -1017,9 +1032,9 @@ supabase/ migrations/, seed.sql, tests/
 | 17 | Template changed after generation | New version; explicit apply action. |
 | 18 | Name changed after generation | Snapshot kept; `refresh_certificate_name`. |
 | 19 | Registrations never hard-deleted | Only drafts are deleted. |
-| 20 | Realtime failure at station | Polling fallback; refetch on reconnect. |
-| 21 | Several stations or tabs | Same session tokens; independent feeds; no conflicting writes (stations are read-only). |
-| 22 | Station Wi-Fi drops ≤ 90 s | Prefetched tokens keep the QR valid; feed catches up. |
+| 20 | Realtime failure on the attendance display | Polling fallback; refetch on reconnect. |
+| 21 | Display open in several tabs or on several of the organizer's devices | Same session tokens; independent feeds; the display makes no writes. |
+| 22 | Display laptop Wi-Fi drops ≤ 90 s | Prefetched tokens keep the QR valid; feed catches up. |
 | 23 | Screenshot/relayed QR | Valid ≤ 60 s; residual risk (§9.7). |
 | 24 | No phone/camera | `manual_time_in` with reason. |
 | 25 | Camera permission denied | Instructions; use the phone camera app (QR is a URL). |
@@ -1035,7 +1050,7 @@ supabase/ migrations/, seed.sql, tests/
 | 35 | Walk-in, on-site off | `not_registered`. |
 | 36 | Walk-in, on-site on, manual mode | Pending → "On-site, awaiting approval" → approved → scan again. |
 | 37 | Walk-in without an account | Sign up → confirm email (needs delivery at the venue) → onboarding → register → scan. |
-| 38 | Station laptop left unattended or stolen | No organizer session on it; organizer revokes; grant expires anyway. |
+| 38 | Display laptop left unattended or stolen while signed in | **Accepted risk** (§9.6): anyone at the keyboard can act as the organizer. Procedural mitigation (stay with it, external screen, OS lock), Sign out of all devices (P-29), audit trail. |
 | 39 | Confirmation link opened on another device | Session created on that device; the original device shows "Email confirmed? Log in" after the user returns. |
 | 40 | Confirmation link expired | `/auth/error` with resend. |
 | 41 | Sign-up with an already registered email | Same "check your email" page; no email is sent to reveal existence; the owner can use "Forgot password". |
@@ -1078,7 +1093,7 @@ supabase/ migrations/, seed.sql, tests/
 | C12 | PDF templates/custom fonts | Excluded. |
 | C13 | On-demand PDF rendering | Adopted. |
 | C14 | Suspension effect on upcoming events | Frozen + admin transfer option. |
-| C15 | Co-organizers | Excluded; station devices cover door duty. |
+| C15 | Co-organizers | Excluded; the organizer runs Attendance Display Mode in their own session. |
 | C16 | Notifications | Excluded (Auth emails only). |
 | C17 | Development database | Replaced: separate development and production projects (§22). |
 | C18 | Git | `main` with `origin`; tool folders git-ignored. |
@@ -1089,7 +1104,7 @@ supabase/ migrations/, seed.sql, tests/
 
 | ID | Decision | Outcome |
 |---|---|---|
-| P-01 | Cloudflare Turnstile CAPTCHA (project-wide: sign-up, sign-in, resend, recovery, anonymous station sign-in) | Approved. Test keys in development; production keys at deployment (K-10). |
+| P-01 | Cloudflare Turnstile CAPTCHA (project-wide: sign-up, sign-in, resend, recovery) | Approved. Test keys in development; production keys at deployment (K-10). |
 | P-02 | Password policy: ≥ 8 characters, letters + digits | Approved |
 | P-03 | Confirmation/recovery link validity 24 h | Approved |
 | P-04 | Purge unconfirmed accounts after 7 days | **Deferred** (optional Phase 12 hygiene) |
@@ -1104,12 +1119,12 @@ supabase/ migrations/, seed.sql, tests/
 | P-13 | On-site approvals from the Attendance tab | Approved **simplified**: filtered view reusing `decide_registrations`; no separate RPC |
 | P-14 | Attendance window ends at effective end + 60 min; sessions can be opened anywhere inside it | Approved (with opening-window correction) |
 | P-15 | Time-out closes time-in; no time-in after time-out has started; completion warning | Approved |
-| P-16 | Session controls only on the organizer's own device | Approved |
+| P-16 | Session controls only on the organizer's own device | Approved; **superseded by P-27** (controls stay in the Attendance tab; the display has none) |
 | P-17 | Unresolved device flags block issuance; audited corrections allowed after completion until a certificate exists | Approved |
 | P-18 | Identity-flagged holders skipped at issuance + review list | Approved |
 | P-19 | Verify-page wording ("account holder named …") | Approved |
 | P-20 | Organizer access to registrant profiles/photos ends 30 days after completion/cancellation | Approved (period confirmed by client under K-07) |
-| P-21 | `pg_cron` jobs: purge device signals 30 days after completion; delete anonymous station users 7 days after grant expiry | Approved (periods confirmed under K-07) |
+| P-21 | `pg_cron` jobs: purge device signals 30 days after completion | Approved (periods confirmed under K-07) |
 | P-22 | Minimal CSV export columns | Approved |
 | P-23 | Environments | **Reversed**: existing project `ldhpbfujqnyovovabvcg` = **development**; a new **production** project is created before deployment |
 
@@ -1121,7 +1136,17 @@ supabase/ migrations/, seed.sql, tests/
 | P-25 | Invite codes are fixed at creation; `regenerate_invite_code` is removed, so printed short links stay valid | Approved |
 | P-26 | Limited public preview: `/events/{id}` renders without login for public, non-draft events through `get_public_event_preview` (title, description, category, host college, date/time, venue, banner, organization name, status label only); everything else shows one neutral login screen; Register requires login and a complete profile; return via `next`; never auto-registers | Approved **modified** (originally proposed: keep the login wall) |
 
-Consistency-review fixes approved with Revision 2: no free-text reasons on station-readable rows (reasons live in `audit_logs`); 10-minute signed photo URLs for stations; privacy notice mentions the station display; `pg_cron` enabled in both environments.
+**Amendment A2 — Attendance Display Mode (approved 2026-10-11):**
+
+| ID | Decision | Outcome |
+|---|---|---|
+| P-27 | Attendance Display Mode at `/organizer/events/{id}/attendance/display`, shown by the organizer's own session; no station login, pairing, grants or anonymous users; the display has no management controls | Approved |
+| P-28 | Anonymous sign-ins stay **disabled** in every environment; the Phase 1b anonymous-user guard stays as defense in depth (no migration) | Approved |
+| P-29 | Unattended-laptop risk accepted and documented; mitigations: reminder before entering the display, external-screen setup, OS lock, **Sign out of all devices**, audit trail | Approved |
+| P-30 | Admin approval only for the organizer application; no per-event approval. Active organizers create, draft, edit, publish, share, cancel and complete their own events, manage registrations and attendance, and generate certificates; public published events appear in Explore immediately | Approved (clarification; no design change) |
+| P-31 | Admins may cancel an individual **published** event when necessary: reason required, same `cancel_event` logic (sessions closed, registrations and attendance kept), `cancelled_by` recorded, audit entry; no admin editing or unpublishing | Approved (Option B) |
+
+Consistency-review fixes approved with Revision 2: no free-text reasons on attendance rows (reasons live in `audit_logs`); 10-minute signed photo URLs on the display; privacy notice mentions the attendance display; `pg_cron` enabled in both environments.
 
 ### 20.3 [CLIENT] items
 
@@ -1133,7 +1158,7 @@ Consistency-review fixes approved with Revision 2: no free-text reasons on stati
 | K-04 | College, program, category lists | Production go-live (development uses dev-only rows) |
 | K-05 | Official student-ID format | Optional tightening, any time |
 | K-06 | Data controller, privacy contact, privacy notice text | Launch (placeholder notice in development) |
-| K-07 | Retention periods (device signals, organizer access window, anonymous users, inactive accounts) | Launch |
+| K-07 | Retention periods (device signals, organizer access window, inactive accounts) | Launch |
 | K-08 | Creation and ownership of the **production** Supabase project; CLI access token for it | Production deployment |
 | K-09 | Supabase plan around the defense (free-tier pausing) | Final demo |
 | K-10 | Cloudflare account for Turnstile production keys | Production deployment |
@@ -1160,10 +1185,10 @@ Consistency-review fixes approved with Revision 2: no free-text reasons on stati
 
 ### 21.2 Data privacy (Data Privacy Act of 2012)
 
-- **Minimization:** no address, birthdate, government IDs. The station shows only photo, name, college and status; no free-text reasons are stored on station-readable rows. CSV exports contain name, student ID, college, program, year, registration and attendance data only (no email, no photo links).
-- **Restricted access:** private avatars and documents; organizers see registrant profiles only for their own events and only until 30 days after completion/cancellation; stations see only their event's checked-in attendees, through 10-minute photo links, while their grant is active.
-- **Retention (periods confirmed by the controller, K-07):** device signals purged 30 days after completion; anonymous station users deleted 7 days after grant expiry.
-- **Notice and consent:** `/privacy` page; consent at onboarding and on the organizer application. The notice states that check-ins are displayed on the station screen (photo, name, college). Controller and contact **[CLIENT K-06]**.
+- **Minimization:** no address, birthdate, government IDs. The attendance display shows only photo, name, college and status; no free-text reasons are stored on attendance rows. CSV exports contain name, student ID, college, program, year, registration and attendance data only (no email, no photo links).
+- **Restricted access:** private avatars and documents; organizers see registrant profiles only for their own events and only until 30 days after completion/cancellation; the attendance display shows only that event's checked-in attendees, through 10-minute photo links.
+- **Retention (periods confirmed by the controller, K-07):** device signals purged 30 days after completion.
+- **Notice and consent:** `/privacy` page; consent at onboarding and on the organizer application. The notice states that check-ins are displayed on the organizer's attendance display (photo, name, college). Controller and contact **[CLIENT K-06]**.
 - **Deletion/anonymization procedure (maintainer-assisted):**
   1. The request reaches an admin; the admin verifies it comes from the account's email address.
   2. The maintainer, in the Supabase dashboard SQL editor of the affected environment, clears personal fields on `profiles` (names replaced with "Deleted user"; student ID, college, program, year and photo path set to NULL), deletes the avatar object through the Storage UI, and writes a `profile.anonymized` audit entry with `private.log_audit`.
@@ -1187,12 +1212,12 @@ Consistency-review fixes approved with Revision 2: no free-text reasons on stati
 | Email rate limit | Default | Raised from Supabase's initial 30/hour to match expected sign-ups |
 | OTP/link expiry | 24 h | 24 h |
 | Email templates | `token_hash` links to `/auth/confirm` (`type=email` / `type=recovery`) | same |
-| Anonymous sign-ins | On (stations) | On |
+| Anonymous sign-ins | **Off** (D-019) | **Off** |
 | CAPTCHA | Turnstile test keys | Turnstile production keys (K-10) |
 | Password policy | ≥ 8, letters + digits | same |
 | Manual identity linking | Off | Off |
 | `pg_cron` extension | Enabled (Phase 8) | Enabled |
 | Site URL / redirect URLs | localhost + preview | production domain (K-11) |
 
-- **Pre-event checklist:** SMTP healthy; email and per-IP sign-up limits raised for expected walk-ins; station pairing tested on the venue network; organizer phone signed in.
+- **Pre-event checklist:** SMTP healthy; email and per-IP sign-up limits raised for expected walk-ins; attendance display tested on the venue network (laptop or external screen); organizer phone signed in.
 - **Free-tier pausing:** plan per K-09.
