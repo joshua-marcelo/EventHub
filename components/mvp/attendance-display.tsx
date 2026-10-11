@@ -15,7 +15,7 @@ export function AttendanceDisplay({id,initial,origin}:{id:string;initial:Attenda
   async function refresh(){if(busy)return;busy=true;try{const data=await attendanceDisplay(id);if(alive&&data){setState(data);setOffset(Date.parse(data.qr.server_time)-Date.now());}else if(alive)setConnection("Unavailable");}catch{if(alive)setConnection("Reconnecting");}finally{busy=false;}}
   const channel=c.channel(`attendance:${id}`).on("postgres_changes",{event:"*",schema:"public",table:"attendance_records",filter:`event_id=eq.${id}`},()=>void refresh());
   void c.auth.getSession().then(async({data})=>{if(!alive||!data.session)return;await c.realtime.setAuth(data.session.access_token);if(alive)channel.subscribe(status=>{if(!alive)return;setConnection(status==="SUBSCRIBED"?"Live":"Polling");void refresh();});});
-  const poll=setInterval(()=>void refresh(),10000),clock=setInterval(()=>setNow(Date.now()),1000);
+  const poll=setInterval(()=>void refresh(),3000),clock=setInterval(()=>setNow(Date.now()),1000);
   return()=>{alive=false;clearInterval(poll);clearInterval(clock);void c.removeChannel(channel);};
  },[id]);
  const serverNow=now+offset;

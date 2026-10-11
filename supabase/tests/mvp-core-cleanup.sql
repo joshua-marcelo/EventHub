@@ -1,5 +1,6 @@
 -- Only disposable fixtures created by mvp-core-fixtures.sql.
 begin;
+delete from public.certificates where event_id='fe000000-0000-4000-8000-000000000001';
 delete from public.attendance_device_signals where event_id='fe000000-0000-4000-8000-000000000001';
 delete from public.attendance_records where event_id='fe000000-0000-4000-8000-000000000001';
 delete from public.attendance_sessions where event_id='fe000000-0000-4000-8000-000000000001';

@@ -287,6 +287,106 @@ export type Database = {
           },
         ]
       }
+      certificates: {
+        Row: {
+          attendance_record_id: string
+          certificate_number: string
+          event_date: string
+          event_id: string
+          event_title: string
+          id: string
+          issued_at: string
+          issued_by: string
+          issuer_name: string
+          recipient_name: string
+          registration_id: string
+          revoked_at: string | null
+          revoked_by: string | null
+          template_version: number
+          user_id: string
+          verification_code: string
+        }
+        Insert: {
+          attendance_record_id: string
+          certificate_number: string
+          event_date: string
+          event_id: string
+          event_title: string
+          id?: string
+          issued_at?: string
+          issued_by: string
+          issuer_name: string
+          recipient_name: string
+          registration_id: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          template_version?: number
+          user_id: string
+          verification_code?: string
+        }
+        Update: {
+          attendance_record_id?: string
+          certificate_number?: string
+          event_date?: string
+          event_id?: string
+          event_title?: string
+          id?: string
+          issued_at?: string
+          issued_by?: string
+          issuer_name?: string
+          recipient_name?: string
+          registration_id?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          template_version?: number
+          user_id?: string
+          verification_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certificates_attendance_record_id_fkey"
+            columns: ["attendance_record_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certificates_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certificates_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certificates_registration_id_event_id_user_id_fkey"
+            columns: ["registration_id", "event_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["id", "event_id", "user_id"]
+          },
+          {
+            foreignKeyName: "certificates_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certificates_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       colleges: {
         Row: {
           code: string
@@ -757,6 +857,10 @@ export type Database = {
       delete_event_draft: { Args: { p_id: string }; Returns: string }
       get_attendance_feed: { Args: { p_event_id: string }; Returns: Json }
       get_attendance_qr: { Args: { p_event_id: string }; Returns: Json }
+      get_certificate_eligibility: {
+        Args: { p_event_id: string }
+        Returns: Json
+      }
       get_event_by_invite_code: { Args: { p_code: string }; Returns: string }
       get_public_event_preview: {
         Args: { p_event_id: string }
@@ -785,6 +889,7 @@ export type Database = {
           venue: string
         }[]
       }
+      issue_certificates: { Args: { p_event_id: string }; Returns: Json }
       open_attendance_session: {
         Args: { p_event_id: string; p_kind: string }
         Returns: string
@@ -799,6 +904,10 @@ export type Database = {
         Args: { p_decision: string; p_id: string; p_reason?: string }
         Returns: string
       }
+      revoke_certificate: {
+        Args: { p_id: string; p_reason: string }
+        Returns: string
+      }
       save_event: { Args: { p_id: string; p_values: Json }; Returns: Json }
       save_lookup: {
         Args: { p_id: number; p_kind: string; p_values: Json }
@@ -811,6 +920,10 @@ export type Database = {
           p_onsite: boolean
           p_policy: string
         }
+        Returns: string
+      }
+      set_certificate_enabled: {
+        Args: { p_enabled: boolean; p_event_id: string }
         Returns: string
       }
       set_event_banner: {
@@ -830,6 +943,7 @@ export type Database = {
         Returns: Json
       }
       submit_organizer_application: { Args: { p_values: Json }; Returns: Json }
+      verify_certificate: { Args: { p_code: string }; Returns: Json }
       withdraw_organizer_application: {
         Args: { p_id: string }
         Returns: string

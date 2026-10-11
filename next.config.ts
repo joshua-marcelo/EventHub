@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
     agentFeedback: true,
   },
   cacheComponents: true,
+  outputFileTracingIncludes: {
+    "/certificates/*/pdf": ["./public/images/eventhub-logo.png"],
+  },
   partialPrefetching: true,
   turbopack: {
     rules: {
