@@ -14,6 +14,241 @@ export type Database = {
   }
   public: {
     Tables: {
+      attendance_device_signals: {
+        Row: {
+          created_at: string
+          device_hash: string
+          event_id: string
+          id: number
+          kind: string
+          record_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_hash: string
+          event_id: string
+          id?: never
+          kind: string
+          record_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_hash?: string
+          event_id?: string
+          id?: never
+          kind?: string
+          record_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_device_signals_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_device_signals_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_device_signals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_records: {
+        Row: {
+          created_at: string
+          event_id: string
+          flag: string | null
+          flag_resolution: string | null
+          flag_resolved_at: string | null
+          flag_resolved_by: string | null
+          id: string
+          registration_id: string
+          revoked_at: string | null
+          revoked_by: string | null
+          status: string
+          time_in_at: string
+          time_in_method: string
+          time_in_session_id: string | null
+          time_out_at: string | null
+          time_out_method: string | null
+          time_out_session_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          flag?: string | null
+          flag_resolution?: string | null
+          flag_resolved_at?: string | null
+          flag_resolved_by?: string | null
+          id?: string
+          registration_id: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          status?: string
+          time_in_at?: string
+          time_in_method: string
+          time_in_session_id?: string | null
+          time_out_at?: string | null
+          time_out_method?: string | null
+          time_out_session_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          flag?: string | null
+          flag_resolution?: string | null
+          flag_resolved_at?: string | null
+          flag_resolved_by?: string | null
+          id?: string
+          registration_id?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          status?: string
+          time_in_at?: string
+          time_in_method?: string
+          time_in_session_id?: string | null
+          time_out_at?: string | null
+          time_out_method?: string | null
+          time_out_session_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_flag_resolved_by_fkey"
+            columns: ["flag_resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_registration_id_event_id_user_id_fkey"
+            columns: ["registration_id", "event_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["id", "event_id", "user_id"]
+          },
+          {
+            foreignKeyName: "attendance_records_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_time_in_session_id_fkey"
+            columns: ["time_in_session_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_time_out_session_id_fkey"
+            columns: ["time_out_session_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_session_secrets: {
+        Row: {
+          secret: string
+          session_id: string
+        }
+        Insert: {
+          secret: string
+          session_id: string
+        }
+        Update: {
+          secret?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_session_secrets_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "attendance_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_sessions: {
+        Row: {
+          closed_at: string | null
+          closed_by: string | null
+          closes_at: string
+          event_id: string
+          id: string
+          kind: string
+          opened_at: string
+          opened_by: string
+          status: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by?: string | null
+          closes_at: string
+          event_id: string
+          id?: string
+          kind: string
+          opened_at?: string
+          opened_by: string
+          status?: string
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by?: string | null
+          closes_at?: string
+          event_id?: string
+          id?: string
+          kind?: string
+          opened_at?: string
+          opened_by?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_sessions_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_sessions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_sessions_opened_by_fkey"
+            columns: ["opened_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -506,11 +741,22 @@ export type Database = {
         Returns: string
       }
       cancel_registration: { Args: { p_event_id: string }; Returns: string }
+      close_attendance_session: {
+        Args: { p_event_id: string }
+        Returns: string
+      }
+      complete_event: { Args: { p_event_id: string }; Returns: string }
+      correct_attendance: {
+        Args: { p_action: string; p_reason: string; p_registration_id: string }
+        Returns: string
+      }
       decide_registration: {
         Args: { p_decision: string; p_id: string; p_reason?: string }
         Returns: string
       }
       delete_event_draft: { Args: { p_id: string }; Returns: string }
+      get_attendance_feed: { Args: { p_event_id: string }; Returns: Json }
+      get_attendance_qr: { Args: { p_event_id: string }; Returns: Json }
       get_event_by_invite_code: { Args: { p_code: string }; Returns: string }
       get_public_event_preview: {
         Args: { p_event_id: string }
@@ -539,6 +785,10 @@ export type Database = {
           venue: string
         }[]
       }
+      open_attendance_session: {
+        Args: { p_event_id: string; p_kind: string }
+        Returns: string
+      }
       profile_full_name: {
         Args: { p: Database["public"]["Tables"]["profiles"]["Row"] }
         Returns: string
@@ -554,6 +804,15 @@ export type Database = {
         Args: { p_id: number; p_kind: string; p_values: Json }
         Returns: string
       }
+      set_attendance_settings: {
+        Args: {
+          p_event_id: string
+          p_lead: number
+          p_onsite: boolean
+          p_policy: string
+        }
+        Returns: string
+      }
       set_event_banner: {
         Args: { p_event_id: string; p_path: string }
         Returns: string
@@ -561,6 +820,14 @@ export type Database = {
       set_organizer_status: {
         Args: { p_reason?: string; p_status: string; p_user_id: string }
         Returns: string
+      }
+      submit_attendance_scan: {
+        Args: {
+          p_device_id: string
+          p_expected_event_id?: string
+          p_token: string
+        }
+        Returns: Json
       }
       submit_organizer_application: { Args: { p_values: Json }; Returns: Json }
       withdraw_organizer_application: {

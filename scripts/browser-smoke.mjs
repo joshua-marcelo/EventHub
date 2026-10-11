@@ -4,7 +4,7 @@ const target = await (await fetch("http://127.0.0.1:9223/json/new?about:blank",{
 const socket = new WebSocket(target.webSocketDebuggerUrl);
 await new Promise((resolve,reject)=>{socket.addEventListener("open",resolve,{once:true});socket.addEventListener("error",reject,{once:true});});
 let sequence = 0; const pending = new Map();
-socket.addEventListener("message",event=>{const message = JSON.parse(event.data);const p = pending.get(message.id);if(p){pending.delete(message.id);message.error ? p.reject(new Error(message.error.message)) : p.resolve(message.result);}});
+socket.addEventListener("message",event=>{const message = JSON.parse(event.data);const p = pending.get(message.id);if(p){pending.delete(message.id);if(message.error)p.reject(new Error(message.error.message));else p.resolve(message.result);}});
 const send = (method,params={}) => new Promise((resolve,reject)=>{const id = ++sequence;pending.set(id,{resolve,reject});socket.send(JSON.stringify({id,method,params}));});
 let failed = false;
 try {

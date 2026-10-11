@@ -1,0 +1,36 @@
+import { createServerClient } from "@supabase/ssr";
+import { readFileSync } from "node:fs";
+const APP=process.argv[2]??"http://localhost:3100",URL=process.env.NEXT_PUBLIC_SUPABASE_URL,KEY=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+if(URL!=="https://ldhpbfujqnyovovabvcg.supabase.co"||!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(APP))throw Error("Development project and local server only");
+const event="fe000000-0000-4000-8000-000000000001",route=`/organizer/events/${event}/attendance`,results=[];
+function check(name,value){results.push(!!value);console.log(`${value?"ok":"NOT OK"} ${name}`);}
+async function login(n){const cookies=new Map(),client=createServerClient(URL,KEY,{cookies:{getAll:()=>[...cookies].map(([name,value])=>({name,value})),setAll:a=>a.forEach(({name,value})=>cookies.set(name,value))}});const {error}=await client.auth.signInWithPassword({email:`core-live-${n}@eventhub.test`,password:"CoreMvpTest123"});if(error)throw error;return {client,header:()=>[...cookies].map(([n,v])=>`${n}=${v}`).join("; ")};}
+const [owner,one,two,other]=await Promise.all([1,2,3,4].map(login));
+const actions=Object.fromEntries(Object.entries(JSON.parse(readFileSync(".next/server/server-reference-manifest.json")).node).map(([id,v])=>[v.exportedName,id]));
+async function action(name,args,user,path){const r=await fetch(APP+path,{method:"POST",redirect:"manual",headers:{"Next-Action":actions[name],Accept:"text/x-component","Content-Type":"text/plain;charset=UTF-8",Origin:APP,cookie:user.header()},body:JSON.stringify(args)});const text=await r.text();return {r,text};}
+async function page(path,user){const r=await fetch(APP+path,{redirect:"manual",headers:user?{cookie:user.header()}:{}});return {r,html:(await r.text()).replace(/<!--.*?-->/g,"")};}
+check("attendance page renders",(await page(route,owner)).html.includes("Start Attendance"));
+check("foreign organizer workspace denied",(await page(route,other)).html.includes("Page not found"));
+const opened=await action("attendanceAction",[event,"time_in"],owner,route);check("real Start Attendance redirects to display",opened.r.headers.get("x-action-redirect")?.includes("/attendance/display"));
+check("owner display renders",(await page(route+"/display",owner)).html.includes("Live check-ins"));
+check("participant display denied",(await page(route+"/display",one)).r.status===307);
+const {data:qr}=await owner.client.rpc("get_attendance_qr",{p_event_id:event});if(!qr)throw Error("QR unavailable");
+let realtime=false;await owner.client.realtime.setAuth((await owner.client.auth.getSession()).data.session.access_token);const channel=owner.client.channel("core-check").on("postgres_changes",{event:"INSERT",schema:"public",table:"attendance_records",filter:`event_id=eq.${event}`},()=>{realtime=true;});
+await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error("Realtime subscription timeout")),12000);channel.subscribe(status=>{if(status==="SUBSCRIBED"){clearTimeout(timer);resolve();}});});
+const scan=token=>one.client.rpc("submit_attendance_scan",{p_token:token,p_device_id:"12345678-1234-4234-8234-123456789012"});
+const concurrent=await Promise.all([scan(qr.tokens[0].token),scan(qr.tokens[0].token)]);
+check("concurrent scans record one time-in",concurrent.map(r=>r.data?.code).sort().join(",")==="already_timed_in,timed_in");
+for(let i=0;i<20&&!realtime;i++)await new Promise(resolve=>setTimeout(resolve,500));check("organizer receives realtime attendance",realtime);
+const browser=await action("submitScan",[qr.tokens[0].token,"87654321-1234-4234-8234-123456789012",null],two,"/scan");check("participant server action records scan",browser.text.includes('"code":"timed_in"'));
+check("other participant cannot read attendance",(await other.client.from("attendance_records").select("id").eq("event_id",event)).data?.length===0);
+check("foreign organizer cannot close session",(await other.client.rpc("close_attendance_session",{p_event_id:event})).data==="not_permitted");
+const out=await action("attendanceAction",[event,"time_out"],owner,route);check("real time-out redirects",out.r.headers.get("x-action-redirect")?.includes("/attendance/display"));
+const {data:qout}=await owner.client.rpc("get_attendance_qr",{p_event_id:event});
+check("participant action records timeout",(await action("submitScan",[qout.tokens[0].token,"12345678-1234-4234-8234-123456789012",null],one,"/scan")).text.includes('"code":"timed_out"'));
+check("tampered QR rejected",(await scan(qout.tokens[0].token.slice(0,-1)+(qout.tokens[0].token.at(-1)==="A"?"B":"A"))).data?.code==="invalid_qr");
+await owner.client.removeChannel(channel);
+if(!process.argv.includes("--attendance-only")){
+ // Certificate/report checks appended with their milestone implementation.
+}
+for(const u of [owner,one,two,other]){u.client.realtime.disconnect();await u.client.auth.signOut();}
+console.log(`${results.filter(Boolean).length}/${results.length} checks passed`);process.exit(results.every(Boolean)?0:1);
