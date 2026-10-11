@@ -2,7 +2,7 @@
 
 Companion to [SYSTEM_SPEC.md](./SYSTEM_SPEC.md). The spec defines *what*; this plan defines *in what order* and *how we know each step is done*. Section references like "§9.3" point to the spec.
 
-Status: **REVISION 2 — APPROVED (2026-10-11).** Phases 0 and 1 are complete (built from Revision 1). Revision 2 adds Phase 1b and revises Phases 2–12 after the 2026-10-11 design review (DECISIONS.md D-009 – D-016). Phase 1b is complete (2026-10-11). Phase 2 is implemented (2026-10-11); email delivery and dashboard settings are pending (D-022). Phase 3 has not started. Decision IDs (P-xx) and client items (K-xx) are listed in spec §20.
+Status: **REVISION 2 — APPROVED (2026-10-11).** Phases 0 and 1 are complete (built from Revision 1). Revision 2 adds Phase 1b and revises Phases 2–12 after the 2026-10-11 design review (DECISIONS.md D-009 – D-016). Phase 1b is complete (2026-10-11). Phase 2 is implemented (2026-10-11); email delivery and dashboard settings are pending (D-022). Phase 3 code is implemented (2026-10-11); permanent admin provisioning and browser verification remain pending (D-023). Decision IDs (P-xx) and client items (K-xx) are listed in spec §20.
 **Amendment A1 — Event Registration QR Sharing (spec §7.5, P-24 – P-26): APPROVED (2026-10-11)**, with P-26 modified to a limited public preview (D-017). Its tasks are marked **[A1]** in Phases 2, 5, 6, 8 and 12. No new phase, table or column; one read-only public function (`get_public_event_preview`, Phase 6).
 **Amendment A2 — Attendance Display Mode (spec §9.6, P-27 – P-31): APPROVED (2026-10-11).** Phase 8 no longer builds an anonymous station or pairing; the organizer's own session shows the attendance display. Anonymous sign-ins stay disabled (D-019). P-30 (no per-event approval) and P-31 (admin cancellation, D-020) are part of Phase 5.
 
@@ -170,27 +170,32 @@ Goal: sign up, confirm email, log in/out, resend confirmation, recover password,
 
 ## Phase 3 — App Shell, Three Dashboards, Switcher, Guards, Admin Lookups
 
+**Status: Implemented (2026-10-11); permanent admin provisioning and browser checks pending (D-023).**
+
 Goal: one authenticated shell with Participant, Organizer and Admin dashboards and a dashboard switcher; admins can enter real lookup data. **Milestone M1.**
 
-- [ ] `(app)/layout.tsx`: static frame; session-dependent parts (switcher, nav, user menu) in `<Suspense>`.
-- [ ] **Dashboard switcher** in the top bar listing only permitted dashboards (Participant; Organizer when `organizer_status <> 'none'`; Admin when `is_admin`). Navigation only; no role state.
-- [ ] Sidebar per dashboard (spec §16.1) + compact links to the others; active-route highlighting.
-- [ ] Mobile: participant bottom nav (Home, Explore, Scan, My Events, Certificates) + Sheet menu; switcher in the Sheet.
-- [ ] `organizer/layout.tsx`: `requireOrganizer({ allowInactive: true })`; suspended/revoked banner (read-only).
-- [ ] `admin/layout.tsx`: `requireAdmin()` → `notFound()` for non-admins. (P-08) admins without a student profile allowed here; default landing `/admin` for them.
-- [ ] Full-screen layout variant for `/organizer/events/[id]/attendance/display` (no sidebar or top bar; used in P8).
-- [ ] Placeholder pages for every route in §16.1 with titles and empty states.
-- [ ] Shared components: `StatusBadge` (single enum mapping), `EmptyState`, `PageHeader`, `ConfirmDialog`, `DataTable` basics.
-- [ ] Global `error.tsx`, `not-found.tsx`, loading skeletons.
-- [ ] **`/admin/lookups`**: colleges (code, name, active), programs per college (name, active), (P-09) categories (name, slug, order, active). Add/rename/deactivate; no delete; audit entries `lookup.created` / `lookup.updated`.
-- [ ] **Admin provisioning procedure** documented in README: account signs up and confirms email; maintainer verifies identity; SQL sets `is_admin = true` and inserts an `admin.granted` audit row. Two admin accounts on development.
+- [x] `(app)/layout.tsx`: static frame; session-dependent parts (switcher, nav, user menu) in `<Suspense>`.
+- [x] **Dashboard switcher** in the top bar listing only permitted dashboards (Participant; Organizer when `organizer_status <> 'none'`; Admin when `is_admin`). Navigation only; no role state.
+- [x] Sidebar per dashboard (spec §16.1) + compact links to the others; active-route highlighting.
+- [x] Mobile: participant bottom nav (Home, Explore, Scan, My Events, Certificates) + Sheet menu; switcher in the Sheet.
+- [x] `organizer/layout.tsx`: `requireOrganizer({ allowInactive: true })`; suspended/revoked banner (read-only).
+- [x] `admin/layout.tsx`: `requireAdmin()` → `notFound()` for non-admins. (P-08) admins without a student profile allowed here; default landing `/admin` for them.
+- [x] Full-screen layout variant for `/organizer/events/[id]/attendance/display` (no sidebar or top bar; used in P8).
+- [x] Placeholder pages for every route in §16.1 with titles and empty states.
+- [x] Shared components: `StatusBadge` (single enum mapping), `EmptyState`, `PageHeader`, `ConfirmDialog`, `DataTable` basics.
+- [x] Global `error.tsx`, `not-found.tsx`, loading skeletons.
+- [x] **`/admin/lookups`**: colleges (code, name, active), programs per college (name, active), (P-09) categories (name, slug, order, active). Add/rename/deactivate; no delete; audit entries `lookup.created` / `lookup.updated`.
+- [x] **Admin provisioning procedure** documented in README: account signs up and confirms email; maintainer verifies identity; SQL sets `is_admin = true` and inserts an `admin.granted` audit row.
+- [ ] Two permanent admin accounts on development — awaiting verified identities. Two temporary admins were exercised successfully, then removed.
 
 **Verification**
-- [ ] Participant sees only the Participant dashboard; admin sees Admin in the switcher; setting `organizer_status = 'active'` on dev shows Organizer.
-- [ ] Non-admin `/admin` → 404; non-organizer `/organizer` → redirect to `/become-organizer`.
-- [ ] No client path (sign-up metadata, profile update, RPC) can set `is_admin` or `organizer_status` (SQL tests from P1 still green + metadata test).
-- [ ] Lookup admin works; deactivated college/program hidden in onboarding but kept on existing profiles.
-- [ ] 360 / 768 / 1280 px layouts; keyboard navigation.
+- [x] Participant sees only the Participant dashboard; admin sees Admin in the switcher; setting `organizer_status = 'active'` on dev shows Organizer.
+- [x] Non-admin `/admin` → 404; non-organizer `/organizer` → redirect to `/become-organizer`.
+- [x] No client path (sign-up metadata, profile update, RPC) can set `is_admin` or `organizer_status` (SQL tests from P1 still green + metadata test).
+- [x] Lookup admin works; deactivated college/program hidden in onboarding but kept on existing profiles.
+- [ ] 360 / 768 / 1280 px layouts; keyboard navigation — responsive implementation is complete, but browser automation is unavailable here.
+
+**Validation:** `npm run typecheck`, `npm run lint`, `npm test` (68/68), `npm run build`; SQL suites 001–004 (105/105, rolled back through MCP); `scripts/phase3-check.mjs` against the production build (64/64). Temporary users, lookup rows and audit records removed. Existing Phase 2 email/settings limitations remain (D-022). No Phase 4 behavior implemented.
 
 ---
 

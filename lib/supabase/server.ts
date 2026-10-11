@@ -2,6 +2,7 @@ import "server-only";
 
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 
 import type { Database } from "@/lib/database.types";
 
@@ -10,6 +11,9 @@ import type { Database } from "@/lib/database.types";
  * Acts as the signed-in user (RLS applies). Create one per request.
  */
 export async function createClient() {
+  // Supabase Auth starts session initialization in the background and reads the clock.
+  // Keep that third-party work out of speculative prerendering (Next 16 Cache Components).
+  await connection();
   const cookieStore = await cookies();
 
   return createServerClient<Database>(

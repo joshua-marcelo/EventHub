@@ -48,10 +48,36 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (signedIn && isGuestOnlyPath(pathname)) {
+    const { data: profile } = await supabase.from("profiles").select("is_admin, is_complete").eq("id", claims!.sub).maybeSingle();
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = profile?.is_admin && !profile.is_complete ? "/admin" : "/dashboard";
     url.search = "";
     return redirectWithCookies(url, response);
+  }
+
+  // Reject before the streamed shell starts so unauthorized admin requests have a real
+  // HTTP 404. These are optimistic checks; every page/action still uses the DAL + RLS.
+  const adminPath = pathname === "/admin" || pathname.startsWith("/admin/");
+  const organizerPath = pathname === "/organizer" || pathname.startsWith("/organizer/");
+  if (signedIn && (adminPath || organizerPath)) {
+    const { data: profile } = await supabase.from("profiles").select("is_admin, is_complete, organizer_status").eq("id", claims!.sub).maybeSingle();
+    if (adminPath && !profile?.is_admin) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/_not-found";
+      url.search = "";
+      const denied = request.method === "GET" || request.method === "HEAD"
+        ? NextResponse.rewrite(url, { status: 404 })
+        : NextResponse.json({ error: "Not found" }, { status: 404 });
+      response.cookies.getAll().forEach(cookie => denied.cookies.set(cookie));
+      return denied;
+    }
+    if (organizerPath && (!profile?.is_complete || profile.organizer_status === "none")) {
+      const url = request.nextUrl.clone();
+      url.pathname = profile?.is_complete ? "/become-organizer" : "/onboarding";
+      url.search = "";
+      if (!profile?.is_complete) url.searchParams.set("next", `${pathname}${search}`);
+      return redirectWithCookies(url, response);
+    }
   }
 
   return response;

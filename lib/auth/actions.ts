@@ -8,6 +8,8 @@ import { authErrorMessage } from "@/lib/auth/messages";
 import { readPendingEmail, rememberPendingEmail } from "@/lib/auth/pending-email";
 import { DEFAULT_AFTER_LOGIN, safeNextPath } from "@/lib/auth/redirect";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/dal";
+import { defaultDashboard } from "@/lib/navigation";
 import {
   type EmailOnlyInput,
   emailOnlySchema,
@@ -71,7 +73,8 @@ export async function signIn(
   });
   if (error) return { ok: false, error: authErrorMessage(error.code), code: error.code };
 
-  redirect(safeNextPath(next, DEFAULT_AFTER_LOGIN));
+  const user = await getCurrentUser();
+  redirect(safeNextPath(next, user ? defaultDashboard(user) : DEFAULT_AFTER_LOGIN));
 }
 
 /** Resend the confirmation email. `input.email` may be omitted on the check-email page. */

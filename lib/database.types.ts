@@ -238,6 +238,10 @@ export type Database = {
         Args: { p: Database["public"]["Tables"]["profiles"]["Row"] }
         Returns: string
       }
+      save_lookup: {
+        Args: { p_id: number; p_kind: string; p_values: Json }
+        Returns: string
+      }
     }
     Enums: {
       application_status: "pending" | "approved" | "rejected" | "withdrawn"
