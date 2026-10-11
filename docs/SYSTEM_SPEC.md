@@ -3,6 +3,7 @@
 **EventHub: A QR-Based Event Management and Attendance System with Automated Digital Certificate Generation for the College Local Council of Wesleyan University–Philippines**
 
 Status: **REVISION 2 — APPROVED (2026-10-11).** Revision 1 was approved on 2026-10-10 and Phases 0–1 were built from it. Revision 2 records the design review of 2026-10-11 and was approved by the project team the same day, including the final consistency-review fixes (DECISIONS.md D-009 – D-016). Nothing new in this revision is implemented yet.
+**Amendment A1 — Event Registration QR Sharing: APPROVED (2026-10-11)** with P-26 modified (limited public preview). Adds §7.5 and touches §2, §3, §6, §7.4, §9.3, §11, §12, §13, §16, §18, §19 and §20 (P-24 – P-26; DECISIONS.md D-017).
 Companion documents: [PLAN.md](./PLAN.md) (build order, phases, verification), [DECISIONS.md](./DECISIONS.md) (decisions log).
 
 ### Markers used in this document
@@ -13,7 +14,7 @@ Companion documents: [PLAN.md](./PLAN.md) (build order, phases, verification), [
 | **[DEFERRED]** | Approved as a later, optional item; not part of the MVP build. |
 | **[CLIENT]** | Depends on the client (CLC / university). Not assumed approved. The design lets the answer be added later, usually without schema changes. |
 
-The decision record (P-01 – P-23) and all client items are in §20.
+The decision record (P-01 – P-26) and all client items are in §20.
 
 ---
 
@@ -66,6 +67,7 @@ Core principles:
 - **Admin provisioning procedure:** the person signs up and confirms their email like everyone else; the maintainer verifies the person's identity outside the system, then runs a documented SQL statement on the production database that sets `is_admin = true` and writes an `admin.granted` audit entry. Removing admin access is the reverse procedure. At least **two** admin accounts exist so that an admin's own organizer application can be reviewed by another admin. Who the admins are is **[CLIENT]**.
 - **Admins and the student profile:** an admin (for example a faculty adviser) is not forced through student onboarding and can use the Admin Dashboard without a complete profile. Participant actions (registering, applying, scanning) still require a complete student profile.
 - **Station device:** an anonymous Supabase user created on the station laptop, bound to one event by a pairing code. It can only fetch QR tokens and read that event's check-in feed (§9.6). It is not a user role and has no dashboard navigation.
+- **Public visitor (no session):** can open the limited preview of public events at `/events/{id}` (§7.5) and the certificate verification pages; nothing else.
 
 ### 2.2 Dashboards and switching
 
@@ -106,6 +108,7 @@ Core principles:
 2. Supabase Auth creates the user **unconfirmed** and sends a confirmation email through the client-owned SMTP provider. No session is issued.
 3. `/signup/check-email` page: "We sent a confirmation link to {email}." with **Resend email** (cooldown 60 s, CAPTCHA) and "Wrong address? Sign up again."
 4. The user clicks the link → `/auth/confirm?token_hash=…&type=email&next=/onboarding` → server verifies the token → session created **on the device where the link was opened** → redirect to onboarding with a "Email confirmed" toast.
+   **Return path (A1):** when sign-in or sign-up started from a page that asked for it (for example Register on an event opened from a registration QR), the original same-origin path is carried as `next` through sign-up (`emailRedirectTo`), resend, the confirmation link and onboarding: `/auth/confirm?…&next=/onboarding?next=/events/{id}` → onboarding → `/events/{id}`. The link carries it, so this also works when the email is opened on another device. Every hop re-validates `next` as a same-origin relative path.
 5. **Expired or already-used link** → `/auth/error?reason=link_expired` with an email field and **Resend confirmation**. Link validity: Supabase `otp_expiry`, default 1 hour; set to 24 hours.
 6. **Signing in before confirming** → Supabase returns "Email not confirmed" → the login form shows "Confirm your email first" with **Resend confirmation**.
 7. Unconfirmed accounts cannot obtain a session, so they cannot reach any app page or call any RPC. **[DEFERRED]** A scheduled purge of unconfirmed accounts older than 7 days is optional hygiene for Phase 12; it is not needed for correctness because unconfirmed accounts cannot log in or claim a student ID.
@@ -120,14 +123,14 @@ Required after confirmation and before any participant action:
 2. Student ID (format check + uniqueness), college, program (filtered by college), year level, optional middle name and suffix.
 3. **Profile photo** (required): JPG/PNG/WEBP, resized client-side to 512 px.
 
-When all are present, `profiles.is_complete` becomes true and the Participant Dashboard unlocks registration.
+When all are present, `profiles.is_complete` becomes true and the Participant Dashboard unlocks registration. If onboarding was reached with a `next` path, the user is sent there instead of the dashboard (A1).
 
 - **Student ID already taken:** "This student ID is already registered. If it is yours, contact an admin." → dispute flow (§5).
 - **Identity lock:** while the user has an *approved* registration for a published event that has not ended, they cannot change their **student ID** or **profile photo**. Names stay editable so typos can be corrected (issued certificates keep their snapshot; organizers can refresh it). The profile page explains which event holds the lock.
 
 ### 3.3 Sign-in, recovery, sign-out
 
-- **Sign in:** email + password (+ CAPTCHA). `next` parameter restored after login (same-origin relative paths only).
+- **Sign in:** email + password (+ CAPTCHA). `next` parameter restored after login (same-origin relative paths only). When `next` points to an event, the login page shows "Log in or create an account to view this event", and its **Sign up** link keeps `next` (A1).
 - **Forgot password:** email (+ CAPTCHA) → always "If an account exists, we sent a link." → email → `/auth/confirm?token_hash=…&type=recovery&next=/reset-password` → new password → `signOut({ scope: 'others' })` so any other sessions end.
 - **Expired recovery link:** `/auth/error?reason=link_expired` with "Send a new reset link".
 - **Email change:** not offered in the MVP; the maintainer corrects addresses on request through the Supabase dashboard and records an `account.email_corrected` audit entry. Supabase's secure email change (confirmation to both addresses) can enable self-service later.
@@ -139,7 +142,7 @@ When all are present, `profiles.is_complete` becomes true and the Participant Da
 2. **Explore Events** (§17): tabs, search, filters, pagination.
 3. **Event details**: banner, title, category, host college, date/time, venue, description, capacity indicator, registration window, approval mode, attendance policy ("Time-in and time-out required"), certificate availability, context-aware action (§18).
 4. **Register** — explicit button. Result: `approved` (automatic mode), `pending` (manual mode), or a clear error.
-5. **Join via invite**: invite QR or link opens event details; codes typed at `/events/join`. Never auto-registers.
+5. **Join via a shared link or registration QR** (§7.5): the event's registration link or QR (from Messenger, Facebook, a poster…) opens the event page directly — a limited public preview when signed out, the full page when signed in. Register asks for login/sign-up and onboarding when needed, then returns to the event. Invite codes can also be typed at `/events/join` (signed in). Never auto-registers and never records attendance.
 6. **My Events**: Upcoming / Pending approval / Past / Cancelled-or-rejected, with registration status and attendance (timed in / timed out / absent / revoked).
 7. **Attendance**: at the venue, scan the station QR with the in-app scanner or the phone camera. The result appears on the phone immediately (§9.3). If on-site registration is enabled and the user is not registered, the result offers **Register on-site**, then asks them to scan again.
 8. **My Certificates**: list, preview, download PDF, copy verification link.
@@ -199,7 +202,7 @@ Not collected: home address, birthdate, government IDs, parents' info.
 2. **Dashboard**: upcoming own events, pending registration counts, attendance open indicators, flags to review, events awaiting **Mark as completed**, completed events with certificates not yet generated.
 3. **Create event** → `draft`. **Publish** validates required fields.
 4. **Event workspace** tabs: Overview · Registrations · Attendance · Certificates · Reports · Settings.
-5. **Share**: invite code, invite QR (PNG), direct link; regenerate code.
+5. **Share** (§7.5): registration link (copy), registration QR (preview, download PNG/SVG, copy image, share via the device's share sheet), invite code with short link. Available once the event is published.
 6. **Registrations**: review, approve/reject (single and bulk).
 7. **Attendance**: settings (policy, lead time, on-site registration) in event settings; on the day: open a time-in session, **pair station devices** with a one-time code, watch the live feed, review ⚠ flags, approve on-site registrants (manual mode), open the time-out session if required, close. Manual time-in/time-out and revocation with reasons.
 8. **Mark as completed** after the event.
@@ -265,12 +268,57 @@ Implemented as SQL `event_phase(events)` and mirrored in TypeScript for display 
 
 ### 7.4 Editing a published event
 
-- Cannot change `organizer_id` (only via the admin transfer RPC), `status`, `invite_code` (only via `regenerate_invite_code`).
+- Cannot change `organizer_id` (only via the admin transfer RPC), `status`, `invite_code` (fixed at creation, P-25).
 - `capacity` cannot go below the approved count.
 - manual → automatic does not auto-approve pending registrations.
 - Dates may change while no attendance session has ever been opened; the UI warns that registrants are not notified.
 - `attendance_policy` and `attendance_opens_minutes_before` are locked once the first attendance session is opened.
 - `certificates_enabled` can be toggled until certificates are issued.
+
+### 7.5 Registration link and QR sharing (Amendment A1)
+
+A static, shareable entry point to one event. It is separate from the rotating attendance QR (§9.2) and grants nothing by itself.
+
+**Link and QR (P-24)**
+- Canonical registration URL: `{NEXT_PUBLIC_APP_URL}/events/{eventId}`. The event id is a UUID that never changes, so the link and every printed QR stay valid for the life of the event, including after edits, ownership transfer and completion.
+- The registration QR encodes exactly that URL — no token, code or parameter. Anyone may share it; possessing it confers no permission.
+- Short link `{APP_URL}/e/{invite_code}` and the typed code at `/events/join` remain as alternatives (for announcements and slides). Both resolve to the same canonical URL. The invite code is generated at creation and never changes (P-25).
+- No new table or column is needed: the URL is derived from `events.id`; the QR is rendered on the client with the existing `qrcode` library through a shared helper `lib/qr.ts` (also used by the station QR and the certificate verification QR). The only database addition is the read-only public preview function below (P-26).
+
+**Share panel (Event workspace → Overview)**
+- Shown when the event is `published`. Draft: "Publish the event to get a shareable link." Cancelled: "This event was cancelled; the link shows a cancellation notice." Completed: link still works and shows the event as ended.
+- **Copy link** (Clipboard API, with a select-and-copy fallback).
+- **QR preview**; **Download PNG** (1024 px, error correction level M, quiet zone 4, file name `EventHub-{event-title-slug}-QR.png`); **Download SVG** for posters/print.
+- **Copy QR image** (Clipboard API with `image/png`; when the browser does not support image copying, the button falls back to Download PNG).
+- **Share…** (Web Share API with title + URL, and the PNG file where the device supports file sharing; hidden when unsupported) — covers Messenger and Facebook on phones.
+- Invite code and short link with copy buttons.
+
+**Opening the link (P-26, modified: limited public preview)**
+
+`/events/{eventId}` is the one route that renders without a session. `proxy.ts` exempts exactly this path pattern from the signed-out redirect; Explore, My Events and every other app page still require login (C4).
+
+1. **Signed out — public preview.** The page validates the id format, then calls `get_public_event_preview(event_id)` (`SECURITY DEFINER`, executable by `anon` and `authenticated`, read-only). It returns data **only** when the event has `visibility = 'public'` and `status` in `published`, `completed` or `cancelled`, and then only these fields:
+   - title, description, category name, host college name, `starts_at`, `ends_at`, venue, public banner path, organizer **organization name** (the byline; the organizer's personal name and email are not exposed);
+   - a status label: Registration opens {date} / Open for registration / Registration closed / Cancelled / Ended. The label is derived on the server; no capacity, counts, registrant lists, approval details, invite code, attendance or certificate data are returned, and no organizer controls are rendered.
+
+   Every other case — draft, unlisted, unknown id, malformed id — returns the **same** empty result, and the page shows one neutral screen: "Log in to view this event" with Log in / Sign up. It reveals neither whether the event exists nor its title, so unlisted links stay unlisted and drafts stay private.
+   The preview shows **Register**, which for a signed-out visitor goes to `/login?next=/events/{id}` (Sign up keeps `next` through email confirmation and onboarding, §3.1–§3.2). Returning to the page never registers automatically; the student presses Register again.
+   Link previews in Messenger/Facebook use the same function: `generateMetadata` emits Open Graph title, short description and banner for public events, and generic EventHub metadata otherwise. Preview pages are `noindex` (shareable, not search-listed).
+2. **Signed in, profile incomplete:** the page renders; pressing Register goes to onboarding with `next`, then back to the event.
+3. **Signed in (permanent account):** the full event details page loads the event through RLS:
+   - `published` (public or unlisted): details with the action button state machine (§18). Unlisted events are reachable by link even though Explore hides them.
+   - `cancelled`: details with a "This event was cancelled" notice and the reason; no register action.
+   - `completed`: "This event has ended"; no register action.
+   - `draft` of another organizer, an unknown id, or a malformed id: one neutral page, "This event isn't available", identical in all three cases so that drafts are not revealed. The owner sees their own draft with a "Draft — not visible to participants" banner.
+   - Anonymous station sessions are redirected to `/station` (§16.2).
+4. **Registering** is always an explicit button press by a signed-in user with a complete profile, calling `register_for_event`, which re-checks published status, registration window (or on-site rule), capacity, approval mode, profile completeness and the own-event rule (§8). Nothing on the page registers automatically.
+5. The `/e/{code}` short link and `/events/join` keep requiring login (codes are resolved by `get_event_by_invite_code` for permanent users only); the printed QR always uses the canonical URL, so posters get the public preview.
+
+**Separation from attendance**
+- The registration QR has no token, so `submit_attendance_scan` can never accept it (`invalid_qr`). The in-app scanner at `/scan` recognizes an EventHub event URL and shows "This is an event registration code, not an attendance code" with an **Open event** button, without calling the attendance RPC.
+- Conversely the attendance QR (`/scan?t=…`) never opens registration.
+
+Explore Events (§17) is unchanged; the registration link is an additional entry point, not a replacement.
 
 ---
 
@@ -359,6 +407,7 @@ Rules (all enforced in RPCs):
 - `INSERT … ON CONFLICT (registration_id)` and conditional updates prevent duplicates.
 - **Device signal:** the scan page creates a random device ID stored in the browser (localStorage + cookie) and sends it with every scan. After a successful 10a/10b the database stores `sha256(device_id ‖ event_id)` in `attendance_device_signals`. If the same hash is already linked to a **different user in the same event**, every affected record gets `flag = 'shared_device'`. The signal is evidence for review, not proof; clearing browser data evades it.
 - **No post-login recovery ticket:** tokens are never stored; a participant who had to log in simply scans again.
+- **Registration QR scanned by mistake (A1):** if the in-app scanner decodes an EventHub event URL (`/events/{id}` or `/e/{code}`), it shows "This is an event registration code, not an attendance code" with **Open event**, and does not call `submit_attendance_scan` (§7.5).
 
 ### 9.4 Organizer actions
 
@@ -487,7 +536,7 @@ My Certificates: list, inline preview, download `EventHub-Certificate-{number}.p
 12. Status and role columns are written only by RPCs (roles: admin RPCs and maintainer SQL).
 13. Completed and cancelled events are terminal.
 14. Certificates follow §10.3.
-15. Invite links/QR/code only open event details; registration is always explicit.
+15. Registration links, registration QR codes and invite codes only open event details; registration is always explicit and attendance is never recorded from them. They never bypass visibility, status, window, capacity, approval or eligibility rules.
 16. Student ID and profile photo lock while an approved registration for a not-yet-ended published event exists; names stay editable.
 17. Station devices act only through an active, unexpired grant for one event.
 18. Anonymous users can never act as participants, organizers or admins.
@@ -595,7 +644,7 @@ create type registration_channel      as enum ('online','onsite');          -- N
 | `attendance_policy` | attendance_policy NOT NULL default `time_in_only` | **NEW**; locked after first session |
 | `attendance_opens_minutes_before` | smallint NOT NULL default 60 | **NEW**; CHECK 0–180 |
 | `allow_onsite_registration` | boolean NOT NULL default false | **NEW** |
-| `invite_code` | text NOT NULL UNIQUE | 8 chars from `ABCDEFGHJKMNPQRSTUVWXYZ23456789` |
+| `invite_code` | text NOT NULL UNIQUE | 8 chars from `ABCDEFGHJKMNPQRSTUVWXYZ23456789`; generated at creation and never changed (P-25) |
 | `status` | event_status NOT NULL default `draft` | RPC-only |
 | `published_at`, `completed_at`, `cancelled_at` | timestamptz NULL | |
 | `cancellation_reason` | text NULL | required when cancelled |
@@ -730,7 +779,7 @@ event_registrations 1─0..1 certificates *─1 certificate_templates ; certific
 
 ### 12.5 RPC surface
 
-All `SECURITY DEFINER`, `SET search_path = ''`, schema-qualified, caller checks first, `EXECUTE` granted only to the intended role. Every RPC except the station RPCs and `verify_certificate` starts with `private.is_permanent_user()`.
+All `SECURITY DEFINER`, `SET search_path = ''`, schema-qualified, caller checks first, `EXECUTE` granted only to the intended role. Every RPC except the station RPCs and the two public read functions (`verify_certificate`, `get_public_event_preview`) starts with `private.is_permanent_user()`.
 
 | Function | Caller | Purpose |
 |---|---|---|
@@ -743,8 +792,8 @@ All `SECURITY DEFINER`, `SET search_path = ''`, schema-qualified, caller checks 
 | `review_organizer_application`, `set_organizer_status` | admin | |
 | `resolve_student_id_dispute(user_id, reason)`, `clear_identity_flag(user_id, note)` | admin | Disputes (deletion requests follow the maintainer procedure, §21.2) |
 | `transfer_event_ownership(event_id, new_owner_id, reason)` | admin | Audited handover |
-| `publish_event`, `cancel_event`, `complete_event`, `regenerate_invite_code` | owner, active organizer | |
-| `get_event_by_invite_code(code)` | authenticated | |
+| `publish_event`, `cancel_event`, `complete_event` | owner, active organizer | `regenerate_invite_code` removed (P-25) |
+| `get_event_by_invite_code(code)` | permanent authenticated | Resolves a typed code or `/e/{code}` to the event id for published, cancelled or completed events; unknown code → `not_found` |
 | `register_for_event(event_id)`, `cancel_registration(event_id)` | authenticated | Includes on-site branch |
 | `decide_registrations`, `approve_all_pending` | owner | Also used for on-site approvals |
 | `open_attendance_session(event_id, kind)`, `close_attendance_session(session_id)` | owner | |
@@ -756,6 +805,7 @@ All `SECURITY DEFINER`, `SET search_path = ''`, schema-qualified, caller checks 
 | `get_attendance_list(event_id)` | owner (suspended: read-only) | Attendance tab data incl. reasons from `audit_logs` |
 | `save_certificate_template`, `issue_certificates`, `revoke_certificate`, `refresh_certificate_name`, `apply_template_to_issued`, `get_certificate_eligibility` | owner | |
 | `verify_certificate(code)` | anon + authenticated | Whitelisted fields |
+| `get_public_event_preview(event_id)` | anon + authenticated | A1/P-26: whitelisted preview of a public, non-draft event (§7.5); identical empty result for every other case |
 | `get_event_report(event_id)` | owner (suspended: read-only) | |
 | `get_admin_overview()` | admin | |
 
@@ -786,7 +836,7 @@ The database holds no rows, so these are made by a new corrective migration (PLA
 4. Status and role columns are never written through table policies; column grants restrict direct updates.
 5. No service-role key in the Next.js runtime.
 6. Realtime `postgres_changes` honors the same SELECT policies.
-7. **Anonymous users** (station devices) share the `authenticated` role. Every table that stations must not read has a **restrictive** policy `using ((select private.is_permanent_user()))`; every RPC except station RPCs and `verify_certificate` refuses them.
+7. **Anonymous users** (station devices) share the `authenticated` role. Every table that stations must not read has a **restrictive** policy `using ((select private.is_permanent_user()))`; every RPC except station RPCs and the public read functions (`verify_certificate`, `get_public_event_preview`) refuses them.
 8. Unconfirmed users never receive a session, so no policy needs to handle them.
 
 ### 13.2 Policy table
@@ -807,7 +857,7 @@ The database holds no rows, so these are made by a new corrective migration (PLA
 | `certificates` | own (non-revoked for download); event owner | RPC | RPC | — |
 | `audit_logs` | admin | RPC | — | — |
 
-Unlisted events are hidden from Explore but readable by any permanent user with the link/code. Suspended/revoked organizers keep SELECT on their own events (read-only reports/exports).
+Unlisted events are hidden from Explore but readable by any permanent user with the link/code. `anon` has no table access to `events`; signed-out visitors see only the whitelisted preview of public events returned by `get_public_event_preview` (§7.5). Suspended/revoked organizers keep SELECT on their own events (read-only reports/exports).
 
 ### 13.3 RLS testing
 
@@ -866,7 +916,8 @@ app/
     onboarding/page.tsx               privacy consent + student profile + photo
     dashboard/page.tsx                Participant Dashboard
     profile/page.tsx
-    events/page.tsx, events/join/page.tsx, events/[eventId]/page.tsx
+    events/page.tsx, events/join/page.tsx
+    events/[eventId]/page.tsx         canonical registration URL (§7.5); renders without a session: public preview or neutral login screen when signed out, full details when signed in
     my-events/page.tsx
     certificates/page.tsx, certificates/[certificateId]/page.tsx, certificates/[certificateId]/pdf/route.ts
     scan/page.tsx                     scanner, ?t= handling, results, on-site registration path
@@ -885,7 +936,8 @@ app/
   (station)/
     station/page.tsx                  anonymous sign-in + pairing code
     station/[eventId]/page.tsx        full-screen station
-  e/[code]/route.ts                   invite short link
+  e/[code]/route.ts                   invite short link → redirect to /events/[eventId] (login first if needed, `next` kept)
+lib/qr.ts                             shared QR helper (registration, station, certificate QR)
 proxy.ts
 lib/
   supabase/{server.ts, client.ts, proxy.ts, station-client.ts}   station client uses a separate cookie name
@@ -897,7 +949,7 @@ supabase/ migrations/, seed.sql, tests/
 
 ### 16.2 Guards and Next.js 16 specifics
 
-- `proxy.ts`: refreshes the session cookie; redirects signed-out users from `(app)`/`(station)/station/[eventId]` to `/login?next=…`; redirects **anonymous** sessions away from `(app)` to `/station`; optimistic only.
+- `proxy.ts`: refreshes the session cookie; redirects signed-out users from `(app)`/`(station)/station/[eventId]` to `/login?next=…`, **except** `/events/{uuid}` (public preview, A1); redirects **anonymous** sessions away from `(app)` to `/station`; optimistic only.
 - DAL (`server-only`): `getCurrentUser()` uses `getClaims()`/`getUser()` and returns `{ id, email, isAnonymous, profile, isAdmin, organizerStatus }`. `requireUser()` refuses anonymous users and sends users with incomplete profiles to `/onboarding` (except pages marked `allowIncomplete`, and admins on `/admin`).
 - Every Server Action and Route Handler calls the DAL; RLS remains the final check.
 - Session-reading components inside `<Suspense>`; layouts never await the session at top level.
@@ -925,6 +977,8 @@ supabase/ migrations/, seed.sql, tests/
 | Recovery | reset link sent (generic); link expired (+ new link); password updated (other sessions signed out) |
 | Onboarding | consent; student ID taken (→ contact admin); program list empty for a college; photo upload/resize errors |
 | Profile | identity locked until {event} ends; identity flagged (contact admin) |
+| Event link (A1) | signed out: public preview with Register → login; neutral "Log in to view this event" for drafts, unlisted, unknown or malformed ids; signed in: full details, event unavailable (neutral), cancelled notice, ended, owner's draft banner |
+| Share panel (A1) | not published yet; link copied; QR downloaded; image copy unsupported → download; share sheet unavailable (button hidden); cancelled notice |
 | Dashboard switcher | only dashboards the user may open; suspended organizer banner "read-only" |
 | Event details action | Log in · Complete profile · Opens {date} · Register · Registered · Pending approval · Rejected (reason) · Cancelled — Register again · Full · Registration closed · Cancelled event · Attendance open — Scan · On-site registration open · Completed |
 | Explore | skeletons, empty, no-results, error + retry |
@@ -993,6 +1047,14 @@ supabase/ migrations/, seed.sql, tests/
 | 47 | Admin without student profile | Uses Admin Dashboard; cannot register or scan. |
 | 48 | Late arrival after time-out started | Time-in sessions can no longer be opened; organizer records an audited manual time-in if appropriate. |
 | 49 | Organizer forgot to open time-out | Completion warning; after completion, audited manual time-outs are still possible until certificates are issued. |
+| 50 | Registration QR scanned while signed out (A1) | Public preview for a public event; Register → login or sign-up → email confirmation → onboarding → back to the same event → explicit Register. |
+| 51 | Registration QR of a draft, deleted, unknown or malformed event (A1) | Signed out: neutral "Log in to view this event" (identical for all). Signed in: "This event isn't available" (identical for all). Drafts are never revealed. |
+| 52 | Registration QR of a cancelled or completed event (A1) | Public event: preview with a Cancelled or Ended label (no cancellation reason). Signed in: details with the notice; no register action. |
+| 53 | Registration QR of an unlisted event (A1) | Signed out: neutral login screen (title not revealed). Signed in: opens normally; still hidden from Explore. |
+| 54 | Registration QR scanned in the attendance scanner (A1) | "This is an event registration code, not an attendance code" + Open event; no attendance call. |
+| 55 | Attendance QR posted instead of the registration QR (A1) | Expires within 60 s; `/scan` shows `expired_qr`; never opens registration. |
+| 56 | Registration closed, full, or approval required when opened from a QR (A1) | Same action-button states as any other entry point (§18); `register_for_event` enforces the rules. |
+| 57 | Poster printed before edits or ownership transfer (A1) | Still valid: the URL uses the permanent event id. |
 
 ---
 
@@ -1005,7 +1067,7 @@ supabase/ migrations/, seed.sql, tests/
 | C1 | Email domain restriction | **Closed:** personal emails allowed; ownership proven by confirmation. |
 | C2 | Student ID format | **[CLIENT]** provisional pattern in use. |
 | C3 | College, program, category lists | **[CLIENT]** contents; entered by admins through `/admin/lookups`. |
-| C4 | Login required to view events | Accepted. |
+| C4 | Login required to view events | Accepted for Explore and all app pages; modified by P-26: `/events/{id}` shows a limited public preview of public events. |
 | C5 | `unlisted` visibility | Accepted. |
 | C6 | Rejected users re-registering | Not allowed. |
 | C7 | Registering for own events | Not allowed. |
@@ -1050,6 +1112,14 @@ supabase/ migrations/, seed.sql, tests/
 | P-21 | `pg_cron` jobs: purge device signals 30 days after completion; delete anonymous station users 7 days after grant expiry | Approved (periods confirmed under K-07) |
 | P-22 | Minimal CSV export columns | Approved |
 | P-23 | Environments | **Reversed**: existing project `ldhpbfujqnyovovabvcg` = **development**; a new **production** project is created before deployment |
+
+**Amendment A1 — Event Registration QR Sharing (approved 2026-10-11):**
+
+| ID | Decision | Outcome |
+|---|---|---|
+| P-24 | The registration link and QR use the canonical `/events/{eventId}` URL; no token, no new table or column; shared `lib/qr.ts` helper | Approved |
+| P-25 | Invite codes are fixed at creation; `regenerate_invite_code` is removed, so printed short links stay valid | Approved |
+| P-26 | Limited public preview: `/events/{id}` renders without login for public, non-draft events through `get_public_event_preview` (title, description, category, host college, date/time, venue, banner, organization name, status label only); everything else shows one neutral login screen; Register requires login and a complete profile; return via `next`; never auto-registers | Approved **modified** (originally proposed: keep the login wall) |
 
 Consistency-review fixes approved with Revision 2: no free-text reasons on station-readable rows (reasons live in `audit_logs`); 10-minute signed photo URLs for stations; privacy notice mentions the station display; `pg_cron` enabled in both environments.
 

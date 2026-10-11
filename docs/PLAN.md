@@ -3,6 +3,7 @@
 Companion to [SYSTEM_SPEC.md](./SYSTEM_SPEC.md). The spec defines *what*; this plan defines *in what order* and *how we know each step is done*. Section references like "§9.3" point to the spec.
 
 Status: **REVISION 2 — APPROVED (2026-10-11).** Phases 0 and 1 are complete (built from Revision 1). Revision 2 adds Phase 1b and revises Phases 2–12 after the 2026-10-11 design review (DECISIONS.md D-009 – D-016). No Revision 2 implementation has started. Decision IDs (P-xx) and client items (K-xx) are listed in spec §20.
+**Amendment A1 — Event Registration QR Sharing (spec §7.5, P-24 – P-26): APPROVED (2026-10-11)**, with P-26 modified to a limited public preview (D-017). Its tasks are marked **[A1]** in Phases 2, 5, 6, 8 and 12. No new phase, table or column; one read-only public function (`get_public_event_preview`, Phase 6).
 
 ---
 
@@ -13,7 +14,7 @@ Status: **REVISION 2 — APPROVED (2026-10-11).** Phases 0 and 1 are complete (b
 - Never hardcode secrets; never edit `.env.local`; document new variables in `.env.example`.
 - **Environments:** all development and testing happens on the **development** Supabase project (`ldhpbfujqnyovovabvcg`). The **production** project is created separately before deployment (Phase 12) and receives only reviewed migrations (`supabase db push`) and documented settings. No tests, experiments or MCP write access on production (spec §22).
 - Every schema change is a migration file in `supabase/migrations/`. After every migration: regenerate `lib/database.types.ts`, run the security and performance advisors, fix findings.
-- Every RPC: `SECURITY DEFINER`, `SET search_path = ''`, schema-qualified names, caller checks first (`private.is_permanent_user()` first, except station RPCs and `verify_certificate`), typed result codes for expected failures, `GRANT EXECUTE` only to the intended role (`REVOKE … FROM public, anon` by default).
+- Every RPC: `SECURITY DEFINER`, `SET search_path = ''`, schema-qualified names, caller checks first (`private.is_permanent_user()` first, except station RPCs and the public read functions `verify_certificate` and `get_public_event_preview`), typed result codes for expected failures, `GRANT EXECUTE` only to the intended role (`REVOKE … FROM public, anon` by default).
 - Every new table that station devices must not read gets a **restrictive** permanent-user policy (spec §13.1 rule 7).
 - Every phase's SQL tests include: anonymous station user denied; unprivileged user denied; role columns not writable.
 - Server Actions: Zod-validate → DAL check → RPC with the user-scoped client → typed `ActionResult` → refresh UI. No business rule exists only in TypeScript.
@@ -128,17 +129,18 @@ Goal: sign up, confirm email, log in/out, resend confirmation, recover password,
 1. [ ] Supabase dev configuration from P1b verified; (P-03) link expiry 24 h; (P-01) Turnstile test keys; (P-02) password policy.
 2. [ ] Email templates (Confirm signup, Reset password) → `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email|recovery&next=…`. Plain, short, no marketing content.
 3. [ ] `lib/supabase/server.ts`, `client.ts`, `proxy.ts` (current `@supabase/ssr` docs).
-4. [ ] `proxy.ts`: refresh session; redirect signed-out users from `(app)` to `/login?next=…`; redirect anonymous sessions from `(app)` to `/station`; matcher excludes static assets.
+4. [ ] `proxy.ts`: refresh session; redirect signed-out users from `(app)` to `/login?next=…`, **except** `/events/{uuid}` (public preview, A1 — the page itself decides what to show); redirect anonymous sessions from `(app)` to `/station`; matcher excludes static assets.
 5. [ ] `lib/auth/dal.ts` (`server-only`): `getCurrentUser()` → `{ id, email, isAnonymous, profile, isAdmin, organizerStatus }`; `requireUser({ allowIncomplete })` (refuses anonymous; incomplete → `/onboarding`); `requireAdmin()`; `requireOrganizer({ allowInactive })`. Cache Components auth pattern.
 6. [ ] Route handlers: `/auth/confirm` (`verifyOtp` with `token_hash`, types `email` and `recovery`; same-origin `next`), `/auth/signout` (POST). `/auth/error` page with resend form.
 7. [ ] Pages in `(auth)`:
    - `signup`: first name, last name, email, password, CAPTCHA → `signUp` → `/signup/check-email`.
+   - **[A1]** Return path: `next` (same-origin only) is kept from login → sign-up → `signUp({ options: { emailRedirectTo } })` → resend → confirmation link → `/onboarding?next=…` → destination. Confirm the exact template variable for the redirect against the current Supabase SSR docs before writing the template. The login page shows "Log in or create an account to view this event" when `next` is an event path.
    - `signup/check-email`: address shown, **Resend** (`auth.resend({ type: 'signup' })`, 60 s cooldown, CAPTCHA), "Wrong address? Sign up again".
    - `login`: handles "Email not confirmed" with inline resend; preserves `next`.
    - `forgot-password`: generic response; `reset-password`: `updateUser({ password })` then (P-05) `signOut({ scope: 'others' })`.
    - Confirmation success → `/onboarding` with toast; link opened on another device → that device is signed in; original device shows "Already confirmed? Log in".
 8. [ ] `/privacy` page (placeholder controller/contact until **[CLIENT K-06]**).
-9. [ ] `/onboarding`: consent (P-06) → student ID, college → program cascade, year, optional middle name/suffix → photo (client resize 512 px, upload to own folder, set `avatar_path`, delete old). Student-ID-taken message with admin contact.
+9. [ ] `/onboarding`: consent (P-06) → student ID, college → program cascade, year, optional middle name/suffix → photo (client resize 512 px, upload to own folder, set `avatar_path`, delete old). Student-ID-taken message with admin contact. **[A1]** On completion, go to `next` if present, else the dashboard.
 10. [ ] Storage bucket `avatars` (private, 2 MB, jpeg/png/webp) + policies (owner folder write; owner read; admin read). Station and organizer read policies come in P6/P8.
 11. [ ] `lib/validation/auth.ts`, `lib/validation/profile.ts` shared by forms and Server Actions.
 12. [ ] Dev-only lookup rows inserted directly in the development database (not in migrations) so onboarding can be tested before admins enter real lists.
@@ -154,6 +156,7 @@ Goal: sign up, confirm email, log in/out, resend confirmation, recover password,
 - [ ] Sign-up with an existing email shows the same "check your email" page and reveals nothing.
 - [ ] Forgot/reset works; other sessions signed out (P-05).
 - [ ] `/dashboard` logged-out → `/login?next=/dashboard` and back; `?next=https://evil.com` ignored.
+- [ ] **[A1]** New account started from `/login?next=/some/path`: sign up → confirm (also on a second device) → onboarding → lands on `/some/path`. `next=//evil.com`, `next=https://…` and `next=/\evil.com` are ignored at every hop.
 - [ ] Anonymous session cannot open `/dashboard`.
 - [ ] Avatar of user A not readable by user B.
 - [ ] Build passes with `cacheComponents`.
@@ -224,23 +227,26 @@ Goal: organizers create, edit, publish, cancel, complete, delete drafts; admins 
 - [ ] Column grants; `events_guard` (terminal lock, capacity ≥ approved count, (P-11) attendance settings lock after first session — body completed in P8).
 - [ ] `event_phase(events)` + `lib/events/phase.ts` with boundary tests.
 - [ ] RLS per §13.2 + restrictive permanent-user policy.
-- [ ] RPCs: `publish_event`, `cancel_event`, `complete_event`, `regenerate_invite_code`, **`transfer_event_ownership`** (admin; active organizer target without a registration for the event; reason; audit; closes sessions/revokes stations once P8 exists).
+- [ ] RPCs: `publish_event`, `cancel_event`, `complete_event`, **`transfer_event_ownership`** (admin; active organizer target without a registration for the event; reason; audit; closes sessions/revokes stations once P8 exists).
 - [ ] Storage bucket `event-banners` (public, 5 MB) + owner write policies.
 
 ### UI
 - [ ] `lib/validation/event.ts` (draft vs publish refinements).
 - [ ] Event form sections: Basics, Schedule, Registration (incl. on-site switch), **Attendance** (policy, lead time), Certificates.
 - [ ] Workspace layout + tabs; Overview with share panel; Settings with cancel/delete/complete.
+- [ ] **[A1]** `lib/qr.ts`: one helper around `qrcode` (`toDataURL`/PNG at a given size, SVG string; error correction M; quiet zone 4), with unit tests. Reused later by the station (P8) and certificates (P9).
+- [ ] **[A1]** Share panel (spec §7.5): registration link `{APP_URL}/events/{id}` with Copy; QR preview; Download PNG (1024 px) and SVG; Copy QR image (falls back to download); Share… via Web Share API (hidden when unsupported); invite code + `/e/{code}` with copy. Only for `published`; draft/cancelled/completed notices. Invite code fixed at creation (P-25; no regenerate RPC or button).
 - [ ] `/organizer/events` table.
 - [ ] `/admin/events/[id]` minimal view with **Transfer ownership** dialog (searchable active organizers, reason).
 
 ### Tests
-- [ ] Participant cannot insert; suspended organizer cannot write; A cannot update B's event; cannot set `status` or `organizer_id` directly; cannot publish incomplete; cannot edit terminal events; cannot delete published.
+- [ ] Participant cannot insert; suspended organizer cannot write; A cannot update B's event; cannot set `status`, `organizer_id` or `invite_code` directly (A1: the code never changes after creation); cannot publish incomplete; cannot edit terminal events; cannot delete published.
 - [ ] Transfer: non-admin denied; target not active → refused; target registered → refused; audit row; old owner loses access.
 - [ ] Unit: event schema, phase helper.
 
 **Verification**
 - [ ] Draft → publish → edit → cancel; complete after start (dev data with past times).
+- [ ] **[A1]** Downloaded PNG and SVG decode (phone camera) to exactly `{APP_URL}/events/{id}`; the QR still works after editing the event and after an ownership transfer; Share… opens Messenger on Android/iOS; copy-image falls back to download on Firefox.
 - [ ] 9:00 AM Manila displays as 9:00 AM on a UTC build.
 - [ ] Transfer a completed event; new owner sees it, old owner gets 404.
 
@@ -254,11 +260,18 @@ Goal: participants find events and register. Depends on P5.
 - [ ] `event_registrations` (§12.2) incl. (P-12) `registration_channel`; uniques; indexes; RLS own + owner; no direct writes.
 - [ ] `can_view_profile(profile_id)` — event owner of a registration; (P-20) until 30 days after completion or cancellation; add to the profiles select policy (D-007) and the avatars select policy.
 - [ ] **Identity-lock trigger body** on `profiles`: blocks changes to `student_id` and `avatar_path` (P-07, narrowed; names stay editable) while an approved registration for a published, not-yet-ended event exists.
+- [ ] **[A1]** `get_public_event_preview(event_id)` (P-26): `SECURITY DEFINER`, `search_path = ''`, `STABLE`, granted to `anon` and `authenticated`. Returns title, description, category name, host college name, `starts_at`, `ends_at`, venue, banner path, organization name and a server-derived status label — only for `visibility = 'public'` and status `published`/`completed`/`cancelled`. Returns the same empty result for draft, unlisted and unknown ids. No counts, capacity, registrants, invite code, organizer personal data or cancellation reason.
 - [ ] RPCs: `register_for_event` (row lock, §8 rules incl. on-site branch — the session check activates in P8), `cancel_registration`, `get_event_by_invite_code`.
 - [ ] `search_events(...)` SQL function.
 
 ### UI
-- [ ] `/events` Explore; `/events/[id]` details with the action state machine; `/events/join`; `/e/[code]`; `/my-events`.
+- [ ] `/events` Explore (unchanged scope); `/events/[id]` details with the action state machine; `/events/join`; `/e/[code]`; `/my-events`.
+- [ ] **[A1]** `/events/[id]` as the canonical registration URL, rendering without a session:
+  - Signed out: validate the UUID format, call `get_public_event_preview`; public preview with **Register → `/login?next=/events/{id}`**; otherwise one neutral "Log in to view this event" screen (identical for draft, unlisted, unknown and malformed ids). No organizer controls, no counts.
+  - `generateMetadata`: Open Graph title/description/banner for public events, generic EventHub metadata otherwise; `robots: noindex`.
+  - Signed in: full details through RLS; neutral "This event isn't available" for another organizer's draft, unknown and malformed ids (same response); owner's draft banner; cancelled notice with reason; "This event has ended" for completed.
+  - Register: signed out → login with `next`; incomplete profile → onboarding with `next`; returning never registers automatically.
+  - `/e/[code]` and `/events/join` (signed in) resolve via `get_event_by_invite_code` and redirect to the canonical URL, keeping `next` when login is needed.
 - [ ] Profile page shows the identity lock reason.
 
 ### Tests
@@ -266,9 +279,12 @@ Goal: participants find events and register. Depends on P5.
 - [ ] Identity lock: photo change blocked during an approved upcoming registration; allowed after the event ends.
 - [ ] `can_view_profile` window (P-20).
 - [ ] Concurrency: capacity 1, two concurrent registrations → exactly one approved.
+- [ ] **[A1]** `get_public_event_preview` as `anon`: public published/completed/cancelled → whitelisted columns only (assert the exact column set); draft, unlisted, unknown id → identical empty result; `anon` still has no SELECT on `events`, `event_registrations` or `profiles`.
 
 **Verification**
 - [ ] Phone (360 px): browse, filter, open invite QR → event → register.
+- [ ] **[A1]** Signed-out phone scans a printed registration QR → public preview → Register → login/sign-up → confirm → onboarding → same event → explicit Register; the registration row exists only after the button press. Repeat for an unlisted event (neutral screen until login), a cancelled event, a full event, a manual-approval event (→ pending), and a deleted draft (→ neutral/unavailable).
+- [ ] **[A1]** Pasting the link in Messenger shows the event title and banner for a public event, and only generic EventHub text for an unlisted event.
 
 ---
 
@@ -335,6 +351,7 @@ Goal: time-in/time-out by participant self-scan against a paired station, with f
 9. **Participant scanner** (`/scan`)
    - [ ] `?t=` → submit immediately when signed in; when signed out → login → `/scan` with camera open and "scan again" message.
    - [ ] Camera scanner (`@zxing/browser`, back camera, stop tracks on unmount, debounce); device ID (localStorage + cookie).
+   - [ ] **[A1]** Payload routing: only `{APP_URL}/scan?t=…` or a raw token goes to `submit_attendance_scan`; an EventHub `/events/{id}` or `/e/{code}` URL shows "This is an event registration code, not an attendance code" + Open event; anything else shows "Not an EventHub attendance code". Unit-test the parser; SQL test that a registration URL string submitted as a token returns `invalid_qr`.
    - [ ] Result screen per code; **Register on-site** path; permission denied / no camera / insecure context states.
    - [ ] Dashboard and My Events "Attendance open — Scan now" CTA.
 10. **Scheduled jobs** (`pg_cron`)
@@ -406,7 +423,7 @@ Goal: release candidate. **Milestone M6.**
 ### Security
 - [ ] Advisors (security + performance) clean on development and production.
 - [ ] Review every RPC: `search_path = ''`, permanent-user check, caller check, execute grants, no dynamic SQL from inputs.
-- [ ] No table with RLS disabled; no unintended `anon` grants; restrictive permanent-user policies present wherever required.
+- [ ] No table with RLS disabled; no unintended `anon` grants (expected: SELECT on lookups; EXECUTE on `verify_certificate` and `get_public_event_preview` only); restrictive permanent-user policies present wherever required.
 - [ ] Storage cross-user and cross-station reads attempted for every private bucket.
 - [ ] Next.js: every Server Action/Route Handler calls the DAL; no service-role key; `next` validated; security headers (CSP, `frame-ancestors`, `Referrer-Policy`, `Permissions-Policy` camera only on `/scan`).
 - [ ] Rate limits documented: Auth email/sign-up/verification limits, anonymous sign-in limit, CAPTCHA.
@@ -419,7 +436,7 @@ Goal: release candidate. **Milestone M6.**
 
 ### Testing
 - [ ] Full SQL suite and unit tests green on development.
-- [ ] E2E (Playwright, if adopted) or scripted checklist: sign-up → confirm → onboarding → apply → approve → create/publish → register (auto, manual, on-site) → bulk approve → pair station → time-in/out (valid, duplicate, expired, shared device) → revoke/resolve → complete → generate → download → verify.
+- [ ] E2E (Playwright, if adopted) or scripted checklist: sign-up → confirm → onboarding → apply → approve → create/publish → share link/QR **[A1]** → open from QR while signed out → register (auto, manual, on-site) → bulk approve → pair station → time-in/out (valid, duplicate, expired, shared device) → revoke/resolve → complete → generate → download → verify.
 - [ ] Walk every row of spec §19 and record pass/fail.
 - [ ] Device matrix: Android Chrome, iOS Safari (camera + native QR), desktop Chrome/Edge/Firefox; station on 1366×768 laptop and a tablet.
 - [ ] Load sanity: 200 registrants, 50 scans within one minute → station keeps up.
