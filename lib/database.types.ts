@@ -111,6 +111,8 @@ export type Database = {
           email: string
           first_name: string | null
           id: string
+          identity_flag_reason: string | null
+          identity_flagged_at: string | null
           is_admin: boolean
           is_complete: boolean | null
           last_name: string | null
@@ -118,7 +120,9 @@ export type Database = {
           organizer_since: string | null
           organizer_status: Database["public"]["Enums"]["organizer_status"]
           organizer_status_reason: string | null
-          program: string | null
+          privacy_consented_at: string | null
+          privacy_notice_version: string | null
+          program_id: number | null
           student_id: string | null
           suffix: string | null
           updated_at: string
@@ -131,6 +135,8 @@ export type Database = {
           email: string
           first_name?: string | null
           id: string
+          identity_flag_reason?: string | null
+          identity_flagged_at?: string | null
           is_admin?: boolean
           is_complete?: boolean | null
           last_name?: string | null
@@ -138,7 +144,9 @@ export type Database = {
           organizer_since?: string | null
           organizer_status?: Database["public"]["Enums"]["organizer_status"]
           organizer_status_reason?: string | null
-          program?: string | null
+          privacy_consented_at?: string | null
+          privacy_notice_version?: string | null
+          program_id?: number | null
           student_id?: string | null
           suffix?: string | null
           updated_at?: string
@@ -151,6 +159,8 @@ export type Database = {
           email?: string
           first_name?: string | null
           id?: string
+          identity_flag_reason?: string | null
+          identity_flagged_at?: string | null
           is_admin?: boolean
           is_complete?: boolean | null
           last_name?: string | null
@@ -158,7 +168,9 @@ export type Database = {
           organizer_since?: string | null
           organizer_status?: Database["public"]["Enums"]["organizer_status"]
           organizer_status_reason?: string | null
-          program?: string | null
+          privacy_consented_at?: string | null
+          privacy_notice_version?: string | null
+          program_id?: number | null
           student_id?: string | null
           suffix?: string | null
           updated_at?: string
@@ -172,6 +184,48 @@ export type Database = {
             referencedRelation: "colleges"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "profiles_program_fk"
+            columns: ["college_id", "program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["college_id", "id"]
+          },
+        ]
+      }
+      programs: {
+        Row: {
+          college_id: number
+          created_at: string
+          id: number
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          college_id: number
+          created_at?: string
+          id?: never
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          college_id?: number
+          created_at?: string
+          id?: never
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "programs_college_id_fkey"
+            columns: ["college_id"]
+            isOneToOne: false
+            referencedRelation: "colleges"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -179,6 +233,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_privacy_notice: { Args: { p_version: string }; Returns: string }
       profile_full_name: {
         Args: { p: Database["public"]["Tables"]["profiles"]["Row"] }
         Returns: string
@@ -187,12 +242,17 @@ export type Database = {
     Enums: {
       application_status: "pending" | "approved" | "rejected" | "withdrawn"
       approval_mode: "automatic" | "manual"
+      attendance_flag: "shared_device"
+      attendance_policy: "time_in_only" | "time_in_and_out"
+      attendance_session_kind: "time_in" | "time_out"
       attendance_session_status: "open" | "closed"
-      attendance_status: "pending" | "present" | "dismissed"
+      attendance_status: "present" | "revoked"
       check_in_method: "qr" | "manual"
       event_status: "draft" | "published" | "completed" | "cancelled"
       event_visibility: "public" | "unlisted"
+      flag_resolution: "cleared" | "revoked"
       organizer_status: "none" | "active" | "suspended" | "revoked"
+      registration_channel: "online" | "onsite"
       registration_status: "pending" | "approved" | "rejected" | "cancelled"
     }
     CompositeTypes: {
@@ -323,12 +383,17 @@ export const Constants = {
     Enums: {
       application_status: ["pending", "approved", "rejected", "withdrawn"],
       approval_mode: ["automatic", "manual"],
+      attendance_flag: ["shared_device"],
+      attendance_policy: ["time_in_only", "time_in_and_out"],
+      attendance_session_kind: ["time_in", "time_out"],
       attendance_session_status: ["open", "closed"],
-      attendance_status: ["pending", "present", "dismissed"],
+      attendance_status: ["present", "revoked"],
       check_in_method: ["qr", "manual"],
       event_status: ["draft", "published", "completed", "cancelled"],
       event_visibility: ["public", "unlisted"],
+      flag_resolution: ["cleared", "revoked"],
       organizer_status: ["none", "active", "suspended", "revoked"],
+      registration_channel: ["online", "onsite"],
       registration_status: ["pending", "approved", "rejected", "cancelled"],
     },
   },

@@ -1,10 +1,10 @@
--- EventHub · Phase 1 · Profiles, helpers, lookups, audit log.
+-- EventHub · Phase 1 · Profiles, helpers, lookups, audit log (updated in Phase 1b for program_id and consent).
 -- Runs inside a transaction and rolls back: no data is left behind.
 -- Run with `npm run test:db` (pgTAP via `supabase test db`).
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(32);
+select plan(34);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures (as the migration owner)
@@ -20,8 +20,9 @@ values
    'admin@test.local', '', now(), '{}', '{"first_name":"Ada","last_name":"Admin"}', now(), now());
 
 update public.profiles set is_admin = true where id = 'c0000000-0000-4000-8000-000000000003';
-update public.profiles set student_id = 'BOB-0001', program = 'BS Nursing' where id = 'b0000000-0000-4000-8000-000000000002';
+update public.profiles set student_id = 'BOB-0001', middle_name = 'Santos' where id = 'b0000000-0000-4000-8000-000000000002';
 insert into public.colleges (code, name) values ('TEST', 'Test College');
+insert into public.programs (college_id, name) select id, 'BS Testing' from public.colleges where code = 'TEST';
 select private.log_audit('test.created', 'profile', 'b0000000-0000-4000-8000-000000000002');
 
 -- ---------------------------------------------------------------------------
@@ -57,7 +58,7 @@ select is((select count(*)::int from public.profiles where id = 'b0000000-0000-4
   0, 'participant cannot read another profile');
 select is((select private.is_admin()), false, 'is_admin() is false for a participant');
 select is((select private.is_active_organizer()), false, 'is_active_organizer() is false for a participant');
-select lives_ok($$ update public.profiles set program = 'BS Information Technology', year_level = 3
+select lives_ok($$ update public.profiles set middle_name = 'Mendoza', year_level = 3
                    where id = 'a0000000-0000-4000-8000-000000000001' $$,
   'participant can update personal columns');
 select throws_ok($$ update public.profiles set is_admin = true where id = 'a0000000-0000-4000-8000-000000000001' $$,
@@ -70,7 +71,7 @@ select throws_ok($$ insert into public.profiles (id, email) values (gen_random_u
   '42501', null, 'participant cannot insert profiles');
 select throws_ok($$ delete from public.profiles where id = 'a0000000-0000-4000-8000-000000000001' $$,
   '42501', null, 'participant cannot delete profiles');
-update public.profiles set program = 'Hijacked' where id = 'b0000000-0000-4000-8000-000000000002';
+update public.profiles set middle_name = 'Hijacked' where id = 'b0000000-0000-4000-8000-000000000002';
 select throws_ok($$ update public.profiles set avatar_path = 'b0000000-0000-4000-8000-000000000002/x.webp'
                     where id = 'a0000000-0000-4000-8000-000000000001' $$,
   '23514', null, 'avatar path must be inside the owner''s folder');
@@ -85,10 +86,14 @@ select is((select is_complete from public.profiles where id = 'a0000000-0000-400
 update public.profiles
   set student_id = 'ALICE-01',
       college_id = (select id from public.colleges where code = 'TEST'),
+      program_id = (select p.id from public.programs p join public.colleges c on c.id = p.college_id where c.code = 'TEST'),
       middle_name = 'Mendoza',
       suffix = 'Jr.',
       avatar_path = 'a0000000-0000-4000-8000-000000000001/avatar.webp'
   where id = 'a0000000-0000-4000-8000-000000000001';
+select is((select is_complete from public.profiles where id = 'a0000000-0000-4000-8000-000000000001'),
+  false, 'profile stays incomplete until the privacy notice is accepted');
+select is(public.accept_privacy_notice('2026-10'), 'ok', 'participant accepts the privacy notice through the RPC');
 select is((select is_complete from public.profiles where id = 'a0000000-0000-4000-8000-000000000001'),
   true, 'profile becomes complete when all required fields are set');
 select is((select p.profile_full_name from public.profiles p where p.id = 'a0000000-0000-4000-8000-000000000001'),
@@ -109,7 +114,7 @@ set local role authenticated;
 
 select ok((select count(*)::int from public.profiles) >= 3, 'admin can read all profiles');
 select is((select count(*)::int from public.audit_logs where action = 'test.created'), 1, 'admin can read audit logs');
-update public.profiles set program = 'Admin edit' where id = 'b0000000-0000-4000-8000-000000000002';
+update public.profiles set middle_name = 'Admin edit' where id = 'b0000000-0000-4000-8000-000000000002';
 
 -- ---------------------------------------------------------------------------
 -- As anon
@@ -122,8 +127,8 @@ select throws_ok($$ select * from public.profiles $$, '42501', null, 'anon canno
 -- Cross-user writes had no effect
 -- ---------------------------------------------------------------------------
 reset role;
-select is((select program from public.profiles where id = 'b0000000-0000-4000-8000-000000000002'),
-  'BS Nursing', 'neither a participant nor an admin can update another user''s profile');
+select is((select middle_name from public.profiles where id = 'b0000000-0000-4000-8000-000000000002'),
+  'Santos', 'neither a participant nor an admin can update another user''s profile');
 
 select * from finish();
 rollback;

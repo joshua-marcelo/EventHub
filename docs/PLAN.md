@@ -2,7 +2,7 @@
 
 Companion to [SYSTEM_SPEC.md](./SYSTEM_SPEC.md). The spec defines *what*; this plan defines *in what order* and *how we know each step is done*. Section references like "§9.3" point to the spec.
 
-Status: **REVISION 2 — APPROVED (2026-10-11).** Phases 0 and 1 are complete (built from Revision 1). Revision 2 adds Phase 1b and revises Phases 2–12 after the 2026-10-11 design review (DECISIONS.md D-009 – D-016). No Revision 2 implementation has started. Decision IDs (P-xx) and client items (K-xx) are listed in spec §20.
+Status: **REVISION 2 — APPROVED (2026-10-11).** Phases 0 and 1 are complete (built from Revision 1). Revision 2 adds Phase 1b and revises Phases 2–12 after the 2026-10-11 design review (DECISIONS.md D-009 – D-016). Phase 1b is complete (2026-10-11) except one dashboard action (development Auth settings, D-018); Phase 2 has not started. Decision IDs (P-xx) and client items (K-xx) are listed in spec §20.
 **Amendment A1 — Event Registration QR Sharing (spec §7.5, P-24 – P-26): APPROVED (2026-10-11)**, with P-26 modified to a limited public preview (D-017). Its tasks are marked **[A1]** in Phases 2, 5, 6, 8 and 12. No new phase, table or column; one read-only public function (`get_public_event_preview`, Phase 6).
 
 ---
@@ -87,37 +87,41 @@ Revision 2 changes several of these objects; they are corrected in Phase 1b (spe
 
 ---
 
-## Phase 1b — Environments and Schema Corrections (NEW)
+## Phase 1b — Environments and Schema Corrections
 
 Goal: a clearly designated development environment and a Phase 1 schema that matches Revision 2. No client dependency.
 
+**Status: Complete (2026-10-11)**, except the development Auth settings in the live project, which need a dashboard change by the team (see below and D-018). Migration `20261011102140_revision2_corrections.sql` is applied to development.
+
 ### Environments
-- [ ] Record `ldhpbfujqnyovovabvcg` as the **development** project (P-23 reversed) in README and `.env.example` comments. The 7 Phase 1 migrations are already applied there; the Supabase MCP integration and `.env.local` already point there.
-- [ ] Optional: CLI access to development (`supabase login`, `supabase link`) so `npm run test:db`/`db:types` work; until then tests run through MCP as in D-006.
-- [ ] Development Auth settings (spec §22): Confirm email **on**; link expiry 24 h (P-03); email templates using `token_hash` links to `/auth/confirm`; anonymous sign-ins **on**; manual linking off; Site URL/redirects for localhost. Production settings are applied in Phase 12.
-- [ ] No production project exists yet; it is created in Phase 12 (K-08).
+- [x] Record `ldhpbfujqnyovovabvcg` as the **development** project (P-23 reversed) in README and `.env.example` comments. Verified before the migration: 0 auth users, 0 sessions, 0 rows in every table, 0 storage objects.
+- [ ] Optional: CLI access to development (`supabase login`, `supabase link`) so `npm run test:db`/`db:types` work. Not available (no access token); tests and types run through MCP (D-006, D-018).
+- [ ] Development Auth settings (spec §22) in the live project — **team action in the Supabase dashboard** (no tool in this environment can change Auth configuration; D-018): Confirm email **on**; email OTP/link expiry **86400 s** (P-03); anonymous sign-ins **on**; manual linking off. The same values are recorded in `supabase/config.toml`. Email templates and redirect URLs move to Phase 2 step 2, because they depend on the `/auth/confirm` route and the `next` return path built there.
+- [x] No production project exists yet; it is created in Phase 12 (K-08).
 
 ### Corrective migration (development first; spec §12.6)
-- [ ] Drop and recreate `attendance_status` as `('present','revoked')`; create `attendance_session_kind`, `attendance_policy`, `attendance_flag`, `flag_resolution`, and (P-12) `registration_channel`.
-- [ ] `programs` table (`UNIQUE (college_id, name)`, `UNIQUE (college_id, id)`) + read policy.
-- [ ] `profiles`: replace `program` with `program_id` + composite FK; add `identity_flagged_at`, `identity_flag_reason`; (P-06) `privacy_consented_at`, `privacy_notice_version`; recreate `is_complete`; update column grants.
-- [ ] Admin insert/update policies and grants on `colleges`, `programs`, and (P-09) `event_categories` (no delete).
-- [ ] `private.is_permanent_user()`; restrictive permanent-user policies on `profiles` and `audit_logs`.
-- [ ] `handle_new_user()` skips anonymous users.
-- [ ] (P-06) `accept_privacy_notice(version)` RPC.
+- [x] Drop and recreate `attendance_status` as `('present','revoked')`; create `attendance_session_kind`, `attendance_policy`, `attendance_flag`, `flag_resolution`, and (P-12) `registration_channel`.
+- [x] `programs` table (`UNIQUE (college_id, name)`, `UNIQUE (college_id, id)`) + read policy.
+- [x] `profiles`: replace `program` with `program_id` + composite FK; add `identity_flagged_at`, `identity_flag_reason`; (P-06) `privacy_consented_at`, `privacy_notice_version`; recreate `is_complete`; update column grants.
+- [x] Admin insert/update policies and grants on `colleges`, `programs`, and (P-09) `event_categories` (no delete; a program cannot move to another college).
+- [x] `private.is_permanent_user()`; restrictive permanent-user policies on `profiles` and `audit_logs`.
+- [x] `handle_new_user()` skips anonymous users.
+- [x] (P-06) `accept_privacy_notice(version)` RPC.
 
 ### Tests
-- [ ] Update `001_profiles.test.sql` for `program_id` and the new `is_complete`.
-- [ ] New: anonymous auth user gets no profile row; anonymous claims cannot read `profiles`, `audit_logs`; non-admin cannot write lookups; admin can insert/update but not delete; program must belong to the chosen college.
-- [ ] Extract the shared test helper (create users, impersonate permanent/anonymous) now that a second test file exists.
+- [x] Update `001_profiles.test.sql` for `program_id` and the new `is_complete` (34 assertions).
+- [x] New `002_revision2_corrections.test.sql`: anonymous auth user gets no profile row; anonymous claims cannot read `profiles`, `audit_logs` (even with an admin's id); non-admin cannot write lookups; admin can insert/update but not delete; program must belong to the chosen college; consent RPC (32 assertions).
+- [ ] Extract the shared test helper. **Not done on purpose (D-018):** neither runner can include a shared file (the MCP runner sends one SQL string; `supabase test db` runs each file on its own), so test files stay self-contained.
 
 ### Documentation
 - [x] DECISIONS.md: D-002 corrected, D-004 updated, Revision 2 entries D-009 – D-016 added (done with the Revision 2 approval, 2026-10-11).
+- [x] DECISIONS.md D-018 (Phase 1b results); `scripts/tap-batch.mjs` runner committed.
 
 **Verification**
-- [ ] `npm run test:db` passes on development via the linked CLI.
-- [ ] Advisors clean on development.
-- [ ] Corrective migration committed with the regenerated types; it reaches production only through the Phase 12 `supabase db push` of all reviewed migrations.
+- [x] Database tests pass on development: `001_profiles` 34/34, `002_revision2_corrections` 32/32, run through MCP with `scripts/tap-batch.mjs` (rolled back; no rows or `pgtap` left behind). `npm run test:db` via the linked CLI remains unavailable without an access token.
+- [x] Advisors on development: performance — only expected `unused_index` INFO notices; security — one WARN (`authenticated_security_definer_function_executable` for `accept_privacy_notice`), accepted as the intended RPC pattern (D-018).
+- [x] Corrective migration committed with the regenerated `lib/database.types.ts`; it reaches production only through the Phase 12 `supabase db push` of all reviewed migrations.
+- [x] `npm run typecheck`, `npm run lint`, `npm test` (17/17), `npm run build` pass.
 
 ---
 
@@ -126,7 +130,7 @@ Goal: a clearly designated development environment and a Phase 1 schema that mat
 Goal: sign up, confirm email, log in/out, resend confirmation, recover password, complete the student profile with photo. Depends on P1b.
 
 ### Auth setup order
-1. [ ] Supabase dev configuration from P1b verified; (P-03) link expiry 24 h; (P-01) Turnstile test keys; (P-02) password policy.
+1. [ ] Supabase dev configuration from P1b verified in the dashboard (confirm email on, 86400 s link expiry, anonymous sign-ins on — D-018); (P-01) Turnstile test keys; (P-02) password policy; Site URL and redirect URLs for localhost.
 2. [ ] Email templates (Confirm signup, Reset password) → `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email|recovery&next=…`. Plain, short, no marketing content.
 3. [ ] `lib/supabase/server.ts`, `client.ts`, `proxy.ts` (current `@supabase/ssr` docs).
 4. [ ] `proxy.ts`: refresh session; redirect signed-out users from `(app)` to `/login?next=…`, **except** `/events/{uuid}` (public preview, A1 — the page itself decides what to show); redirect anonymous sessions from `(app)` to `/station`; matcher excludes static assets.

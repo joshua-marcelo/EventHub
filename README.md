@@ -1,5 +1,13 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## EventHub environments
+
+Specification and build plan: [`docs/SYSTEM_SPEC.md`](docs/SYSTEM_SPEC.md), [`docs/PLAN.md`](docs/PLAN.md), [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+- **Development** Supabase project: `ldhpbfujqnyovovabvcg`. Migrations and tests run here first. It holds no real users.
+- **Production** Supabase project: created separately before deployment (PLAN Phase 12). It receives only reviewed migrations through `supabase db push`, never test runs.
+- Required Auth settings per environment are listed in `docs/SYSTEM_SPEC.md` §22 and recorded in `supabase/config.toml`.
+
 ## Getting Started
 
 First, run the development server:
