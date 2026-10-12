@@ -15,7 +15,7 @@ Validation: typecheck, lint, production build; 30 targeted unit tests; 92 new da
 Recheck locally with SQL fixtures/cleanup and `scripts/mvp-core-check.mjs`; browser scripts use isolated Chrome on port 9223. These scripts refuse non-development Supabase projects and non-local app URLs.
 
 Before deployment:
-- Provision separate production Supabase; apply/reconcile migration history (existing Phase 3 local timestamp differs from remote), seed approved lookups, provision maintainer admin.
+- Provision separate production Supabase; apply migrations (history reconciled 2026-10-12, D-026), seed approved lookups, provision maintainer admin.
 - Configure Vercel environment, canonical HTTPS app URL, Supabase redirect allow-list, verified-email/anonymous-login settings, SMTP and CAPTCHA.
 - Supply final privacy controller/contact and approved retention notice.
 - Verify camera permission, QR rotation, realtime, and PDF downloads on physical phones over HTTPS.

@@ -39,9 +39,9 @@ After the event, eligible participants can receive automatically generated digit
 
 - Approve or reject organizer applications.
 - Manage organizer access and permissions.
-- Manage college and program information.
-- Handle account-related concerns.
-- Perform authorized administrative actions.
+- Manage college, program, and event category information.
+- Search user accounts and view a read-only account summary.
+- Suspend, reinstate, or revoke organizers and cancel published events, with a required reason.
 
 ### 2. Event Organizer Module
 
@@ -133,9 +133,45 @@ Participants can download their certificates, which include verification informa
 
 ## Project Status
 
-The EventHub core MVP has been implemented, including authentication, role-based dashboards, event management, registration QR sharing, QR-based attendance, digital certificates, and basic reporting.
+The EventHub core MVP is implemented and verified against the development environment: authentication and onboarding, role-based dashboards, organizer applications, event management, registration QR sharing, rotating QR attendance with live monitoring, digital certificates with public verification and revocation, and event reports with CSV export.
 
-Final email authentication validation, production configuration, real-device testing, and deployment preparation remain in progress.
+The automated checks pass on a production build: 108 unit tests, 269 database/RLS assertions, and 230 live integration and browser checks. See [docs/FINAL_QA.md](docs/FINAL_QA.md) for what is tested, what still needs manual configuration (Supabase email templates, SMTP, production project), and what requires physical phones or production.
+
+## Getting Started (development)
+
+Requirements: Node.js 22 and access to the **development** Supabase project.
+
+```bash
+npm install
+cp .env.example .env.local   # fill in the development URL and publishable key
+npm run dev                  # http://localhost:3000
+```
+
+The app needs only the public Supabase URL, the publishable key, and `NEXT_PUBLIC_APP_URL`. It never uses a service-role key.
+
+## Testing
+
+```bash
+npm run typecheck
+npm run lint
+npm test          # unit tests
+npm run build
+```
+
+Database (pgTAP) suites live in `supabase/tests/database/`, and live integration and browser scripts live in `scripts/`. Each script refuses to run outside the development project and a local server. See [docs/FINAL_QA.md](docs/FINAL_QA.md#rerunning-the-live-checks) for the fixture and cleanup procedure.
+
+## Deployment
+
+Production uses a separate Supabase project and Vercel. Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for migrations, Auth URL settings, email templates and SMTP, Vercel environment variables, the domain, administrator provisioning, and production smoke tests.
+
+## Documentation
+
+- [docs/SYSTEM_SPEC.md](docs/SYSTEM_SPEC.md): system specification
+- [docs/PLAN.md](docs/PLAN.md): implementation plan
+- [docs/DECISIONS.md](docs/DECISIONS.md): decision log
+- [docs/FINAL_QA.md](docs/FINAL_QA.md): final QA checklist and verification results
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): production deployment guide
+- [supabase/templates/README.md](supabase/templates/README.md): authentication email templates
 
 ---
 
