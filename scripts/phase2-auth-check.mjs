@@ -1,8 +1,8 @@
 // Phase 2 live check against a running app (`npm run build && npm start`) and the DEVELOPMENT
 // Supabase project. Never point this at production.
 //
-// Prerequisite: the temporary users seeded as described in DECISIONS.md D-022 (emails
-// p2-*@eventhub.test, password "Phase2pass1", known confirmation/recovery token hashes).
+// Prerequisite: seed supabase/tests/phase2-fixtures.sql through MCP (p2-*@eventhub.test,
+// known confirmation/recovery token hashes); always run phase2-cleanup.sql afterwards.
 // Real emails cannot be delivered to test addresses, so the email links are simulated with the
 // seeded token hashes; everything else goes through the real app routes and Supabase Auth.
 //
@@ -100,10 +100,6 @@ for (const path of ["/", "/login", "/signup", "/forgot-password", "/privacy", "/
   const { data, error } = await supabase().auth.signInWithPassword({ email: USER.confirmed.email, password: PASSWORD });
   check("confirmed account can log in", !error && Boolean(data.session), error?.code);
 }
-{
-  const { error } = await supabase().auth.signUp({ email: `p2-new-${Date.now()}@example.com`, password: PASSWORD });
-  check("sign-up of a new address reaches Supabase (result recorded)", true, error ? `error: ${error.code}` : "accepted");
-}
 
 // --- 3. Confirmation link (/auth/confirm) ----------------------------------------------------
 {
@@ -159,12 +155,10 @@ for (const path of ["/", "/login", "/signup", "/forgot-password", "/privacy", "/
   const j = jar();
   const res = await get(`/auth/confirm?token_hash=${TOKENS.recover}&type=recovery&next=${encodeURIComponent("/dashboard")}`, j);
   const loc = location(res);
-  check("recovery link signs in and always goes to /reset-password", loc?.pathname === "/reset-password" && j.hasSession(), loc?.pathname);
-  const page = await get("/reset-password", j);
-  const html = await page.text();
-  check("reset form is shown for the recovery session", page.status === 200 && html.includes("Choose a new password"));
-  const noSession = await (await get("/reset-password")).text();
-  check("without a session the reset page explains the link is invalid", noSession.includes("Reset link no longer valid"));
+  // Recovery tokens are spent only when the new password is submitted (email-recovery-check.mjs).
+  check("recovery link goes to /reset-password without spending the token", loc?.pathname === "/reset-password" && loc.hash.includes("type=recovery") && !loc.search && !j.hasSession(), loc?.pathname);
+  const page = await get("/reset-password");
+  check("reset page renders for a signed-out visitor", page.status === 200 && (await page.text()).includes("Choose a new password"));
 }
 
 // --- 5. Avatar Storage through the API -------------------------------------------------------

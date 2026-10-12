@@ -1,6 +1,6 @@
 // Phase 2 Server Action check: calls the real actions of a production build over HTTP, the way
 // the browser does (Next-Action header + JSON arguments), against the DEVELOPMENT project.
-// Prerequisite: same seeded p2-*@eventhub.test users as phase2-auth-check.mjs (DECISIONS D-022),
+// Prerequisite: supabase/tests/phase2-fixtures.sql, then phase2-auth-check.mjs (D-022);
 // run after that script (it confirms p2-unconfirmed / p2-evilnext). It needs an unused recovery
 // token for p2-recover (re-seed it if phase2-auth-check.mjs already used it).
 //
@@ -27,7 +27,13 @@ const RECOVERY_TOKEN = "p2recovertoken000000000000000000000000000000000000000003
 // Action ids from the build that is running.
 const manifest = JSON.parse(readFileSync(new URL("../.next/server/server-reference-manifest.json", import.meta.url)));
 const ACTION = {};
-for (const [id, v] of Object.entries(manifest.node)) ACTION[v.exportedName] = { id, page: Object.keys(v.workers)[0] };
+// Shared actions are bundled into many pages; post to one a participant can reach (no
+// dynamic segment, no admin/organizer prefix that the proxy answers with 404 or a redirect).
+const reachable = (w) => !w.includes("[") && !/\/(admin|organizer)\//.test(w);
+for (const [id, v] of Object.entries(manifest.node)) {
+  const workers = Object.keys(v.workers);
+  ACTION[v.exportedName] = { id, page: workers.find(reachable) ?? workers[0] };
+}
 const pagePath = (worker) => worker.replace(/^app/, "").replace(/\/page$/, "").replace(/\/\([^)]+\)/g, "") || "/";
 
 const results = [];
@@ -108,13 +114,11 @@ const session = jar();
   const r = await call("signUp", [{ firstName: "", lastName: "X", email: "a@b.co", password: "short", confirmPassword: "nope" }], jar());
   check("signUp: validation errors (name, weak password, mismatch)", r.result?.ok === false && r.result.fieldErrors?.firstName && r.result.fieldErrors?.password && r.result.fieldErrors?.confirmPassword);
 }
+// Accepted sign-ups and reset requests send real email; bounces from undeliverable test
+// addresses can get the project's sender restricted, so only validation runs here.
 {
-  const r = await call("signUp", [{ firstName: "New", lastName: "Person", email: `p2-new-${Date.now()}@example.com`, password: PASSWORD, confirmPassword: PASSWORD }], jar());
-  check("signUp: Supabase rejection is shown as a message (no crash)", r.result?.ok === false && typeof r.result.error === "string", `${r.result?.code}: ${r.result?.error}`);
-}
-{
-  const r = await call("requestPasswordReset", [{ email: "nobody-p2@eventhub.test" }], jar());
-  check("password reset request answers generically", r.result?.ok === true || ["over_email_send_rate_limit"].includes(r.result?.code), r.result?.message ?? r.result?.error);
+  const r = await call("requestPasswordReset", [{ email: "not-an-email" }], jar());
+  check("password reset request validates the email address", r.result?.ok === false && r.result.fieldErrors?.email !== undefined, r.result?.error);
 }
 
 // --- Onboarding actions ----------------------------------------------------------------------
@@ -199,11 +203,12 @@ const second = `${U.confirmed.id}/${crypto.randomUUID()}.png`;
   await otherDevice.auth.signInWithPassword({ email: U.recover.email, password: PASSWORD });
   const { data: before } = await otherDevice.auth.refreshSession();
 
+  // The reset form keeps the email credential in memory and submits it with the password.
   const recovery = jar();
-  await get(`/auth/confirm?token_hash=${RECOVERY_TOKEN}&type=recovery`, recovery);
-  const weak = await call("updatePassword", [{ password: "abc", confirmPassword: "abc" }], recovery);
+  const link = { kind: "token_hash", tokenHash: RECOVERY_TOKEN };
+  const weak = await call("updatePassword", [{ password: "abc", confirmPassword: "abc" }, link], recovery);
   check("updatePassword: weak password is refused", weak.result?.fieldErrors?.password !== undefined);
-  const r = await call("updatePassword", [{ password: NEW_PASSWORD, confirmPassword: NEW_PASSWORD }], recovery);
+  const r = await call("updatePassword", [{ password: NEW_PASSWORD, confirmPassword: NEW_PASSWORD }, link], recovery);
   check("updatePassword: new password saved", r.result?.ok === true, r.result?.error);
 
   const { error: refreshError } = await otherDevice.auth.refreshSession(before.session ?? undefined);
