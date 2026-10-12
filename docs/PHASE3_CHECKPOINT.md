@@ -80,7 +80,7 @@ Changed files:
 - `lib/validation/lookup.test.ts`
 - `lib/validation/lookup.ts`
 - `scripts/phase3-check.mjs`
-- `supabase/migrations/20261011130000_phase3_lookup_management.sql`
+- `supabase/migrations/20261011114808_phase3_lookup_management.sql`
 - `supabase/tests/database/004_phase3_lookups.test.sql`
 - `supabase/tests/phase3-cleanup.sql`
 - `supabase/tests/phase3-fixtures.sql`
