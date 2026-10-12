@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ArrowRight, CalendarDays, ScanLine, Ticket, Award, ArrowUpRight } from "lucide-react";
 import { PublicEventList } from "@/components/landing/event-list";
+import { BrandLogo } from "@/components/shared/brand-logo";
 export const metadata = { title:"EventHub — Your campus, connected",description:"Discover university events, reserve your place, check in with QR attendance, and keep your achievements." };
 const steps = [
   {title:"Discover",text:"Find seminars, activities, and gatherings across your university.",icon:CalendarDays},
@@ -14,7 +14,7 @@ export default function Home() {
   return <div className="landing min-h-svh bg-[#faf9f6] text-slate-900">
     <a href="#main-content" className="sr-only z-50 rounded bg-white px-4 py-2 focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to content</a>
     <header className="border-b border-stone-200 bg-white"><nav aria-label="Main navigation" className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-5 gap-y-4 px-5 py-5 sm:px-8">
-      <Link href="/" aria-label="EventHub home"><Image src="/images/eventhub-logo.png" alt="EventHub" width={2172} height={724} priority className="h-auto w-36 sm:w-44" /></Link>
+      <Link href="/" aria-label="EventHub home"><BrandLogo preload className="w-36 sm:w-44" sizes="(min-width: 640px) 185px, 151px" /></Link>
       <div className="order-3 flex w-full gap-6 border-t border-stone-100 pt-3 text-sm font-medium sm:order-none sm:w-auto sm:border-0 sm:pt-0"><a href="#events" className="hover:text-orange-800">Explore Events</a><a href="#how-it-works" className="hover:text-orange-800">How It Works</a></div>
       <div className="flex items-center gap-4 text-sm font-semibold"><Link href="/login" className="hover:text-orange-800">Login</Link><Link href="/signup" className="rounded-md bg-slate-900 px-4 py-2.5 text-white hover:bg-slate-700">Sign Up</Link></div>
     </nav></header>
@@ -27,6 +27,6 @@ export default function Home() {
       <section id="how-it-works" aria-labelledby="how-title" className="scroll-mt-8 border-y border-stone-200 bg-white"><div className="mx-auto max-w-6xl px-5 py-12 sm:px-8 sm:py-16"><p className="mb-2 text-xs font-semibold uppercase tracking-[.14em] text-orange-800">How it works</p><h2 id="how-title" className="text-2xl font-semibold tracking-tight sm:text-3xl">Four steps. One connected experience.</h2><ol className="mt-9 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">{steps.map((step,i) => <li key={step.title} className="border-t border-stone-200 pt-5"><div className="mb-5 flex justify-between"><span className="text-sm font-medium text-orange-800">0{i+1}</span><step.icon className="size-5 text-slate-500" aria-hidden="true" /></div><h3 className="text-lg font-semibold">{step.title}</h3><p className="mt-2 text-sm leading-relaxed text-slate-600">{step.text}</p></li>)}</ol></div></section>
       <section className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-6 px-5 py-12 sm:px-8"><div><h2 className="text-2xl font-semibold tracking-tight">Have something worth bringing people together for?</h2><p className="mt-2 text-sm text-slate-600">Apply as an organizer and put your next event on the calendar.</p></div><Link href="/become-organizer" className="inline-flex items-center gap-3 rounded-md border border-slate-900 px-5 py-3 text-sm font-semibold hover:bg-white">Become an organizer<ArrowRight className="size-4" aria-hidden="true" /></Link></section>
     </main>
-    <footer className="border-t border-stone-200 bg-white"><div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-5 px-5 py-7 sm:px-8"><div><Image src="/images/eventhub-logo.png" alt="EventHub" width={2172} height={724} className="h-auto w-28" /><p className="mt-3 text-xs text-slate-500">Connecting university events and the people who make them matter.</p></div><nav aria-label="Footer navigation" className="flex flex-wrap gap-5 text-sm text-slate-600"><Link href="/privacy" className="hover:text-orange-800">Privacy notice</Link><Link href="/verify" className="hover:text-orange-800">Verify a certificate</Link><Link href="/login" className="hover:text-orange-800">Login</Link></nav></div></footer>
+    <footer className="border-t border-stone-200 bg-white"><div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-5 px-5 py-7 sm:px-8"><div><BrandLogo className="w-28" sizes="118px" /><p className="mt-3 text-xs text-slate-500">Connecting university events and the people who make them matter.</p></div><nav aria-label="Footer navigation" className="flex flex-wrap gap-5 text-sm text-slate-600"><Link href="/privacy" className="hover:text-orange-800">Privacy notice</Link><Link href="/verify" className="hover:text-orange-800">Verify a certificate</Link><Link href="/login" className="hover:text-orange-800">Login</Link></nav></div></footer>
   </div>;
 }

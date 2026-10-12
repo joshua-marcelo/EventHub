@@ -10,6 +10,7 @@ import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescri
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { dashboards, navigation, dashboardForPath, isActiveLink, isAttendanceDisplay, permittedDashboards, type Permissions } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/shared/brand-logo";
 
 const icons = { home: HomeIcon, explore: CompassIcon, scan: QrCodeIcon, events: CalendarDaysIcon, certificates: AwardIcon, organizer: GraduationCapIcon, people: UsersIcon, reports: ChartNoAxesColumnIcon, settings: SettingsIcon };
 export type ShellUser = Permissions & { name: string; email: string };
@@ -49,7 +50,7 @@ export function AppShell({ user, children }: { user: ShellUser | null; children:
           <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden" aria-label="Open menu" />}><MenuIcon /></SheetTrigger>
           <SheetContent side="left" className="w-72"><SheetHeader><SheetTitle>EventHub</SheetTitle><SheetDescription>Your campus. Your events.</SheetDescription></SheetHeader><div className="overflow-y-auto px-4 pb-6"><div className="mb-6">{switcher}</div>{nav}<div className="mt-4"><SignOutButton variant="ghost" /></div></div></SheetContent>
         </Sheet>}
-        <Link href={user && current === "admin" ? "/admin" : "/dashboard"} className="flex items-center gap-2 font-semibold tracking-tight"><CalendarDaysIcon className="size-5" aria-hidden="true" />EventHub</Link>
+        <Link href={user && current === "admin" ? "/admin" : "/dashboard"} aria-label="EventHub home" className="shrink-0"><BrandLogo className="w-28" sizes="118px" /></Link>
         {user && <div className="hidden md:block">{switcher}</div>}
       </div>
       {user ? <>
