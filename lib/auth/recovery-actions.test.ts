@@ -46,6 +46,11 @@ describe("secure password recovery", () => {
     await updatePassword(password, { kind: "session", accessToken: "test-access", refreshToken: "test-refresh" });
     expect(auth.setSession).toHaveBeenCalledWith({ access_token: "test-access", refresh_token: "test-refresh" });
   });
+  it("explains PKCE links opened in a different browser instead of calling them expired", async () => {
+    auth.exchangeCodeForSession.mockResolvedValue({ error: { code: "pkce_code_verifier_not_found" } });
+    expect(await updatePassword(password, { kind: "code", code: "test-code" })).toMatchObject({ ok: false, code: "link_invalid", error: expect.stringContaining("same browser") });
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
   it("allows retrying a rejected password through the new cookie session", async () => {
     auth.updateUser.mockResolvedValueOnce({ error: { code: "same_password" } });
     expect(await updatePassword(password, link)).toMatchObject({ ok: false, code: "same_password", recoveryVerified: true });

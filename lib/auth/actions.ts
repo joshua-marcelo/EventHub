@@ -142,6 +142,11 @@ export async function updatePassword(input: ResetPasswordInput, recovery?: Recov
       : value.kind === "code"
         ? await supabase.auth.exchangeCodeForSession(value.code, value.flowId ? { flowId: value.flowId } : undefined)
         : await supabase.auth.setSession({ access_token: value.accessToken, refresh_token: value.refreshToken });
+    // A Supabase PKCE link only works in the browser that requested it (the verifier cookie
+    // lives there). The link is still valid elsewhere, so do not call it expired.
+    if (error && ["pkce_code_verifier_not_found", "bad_code_verifier"].includes(error.code ?? "")) {
+      return { ok: false, error: "Open this reset link in the same browser where you requested it, or request a new link here.", code: "link_invalid" };
+    }
     if (error) {
       return { ok: false, error: "This reset link has expired or was already used. Request a new one.", code: "link_invalid" };
     }
