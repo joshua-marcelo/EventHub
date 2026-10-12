@@ -45,7 +45,7 @@ export function SignUpForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create your account</CardTitle>
+        <CardTitle><h1>Create your account</h1></CardTitle>
         <CardDescription>
           We will email you a link to confirm your address. After that you complete your student profile.
         </CardDescription>

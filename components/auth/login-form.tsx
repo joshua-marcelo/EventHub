@@ -62,7 +62,7 @@ export function LoginForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Log in</CardTitle>
+        <CardTitle><h1>Log in</h1></CardTitle>
         <CardDescription>
           {forEvent ? "Log in or create an account to view this event." : "Use the email and password you signed up with."}
         </CardDescription>

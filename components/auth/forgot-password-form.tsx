@@ -39,7 +39,7 @@ export function ForgotPasswordForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Reset your password</CardTitle>
+        <CardTitle><h1>Reset your password</h1></CardTitle>
         <CardDescription>Enter your account email. The link in the email is valid for 1 hour.</CardDescription>
       </CardHeader>
       <CardContent>

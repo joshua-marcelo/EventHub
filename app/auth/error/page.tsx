@@ -37,7 +37,7 @@ async function AuthError({ searchParams }: Pick<PageProps<"/auth/error">, "searc
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle><h1>{title}</h1></CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>

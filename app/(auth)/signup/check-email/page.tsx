@@ -26,7 +26,7 @@ async function CheckEmail({ searchParams }: Pick<PageProps<"/signup/check-email"
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Check your email</CardTitle>
+        <CardTitle><h1>Check your email</h1></CardTitle>
         <CardDescription>
           We sent a confirmation link to <strong className="text-foreground">{email ? maskEmail(email) : "your email address"}</strong>.
           Open it to activate your account. The link is valid for 1 hour.
