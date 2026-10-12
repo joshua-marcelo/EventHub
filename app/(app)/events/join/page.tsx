@@ -16,6 +16,7 @@ async function join(form: FormData) {
   if (!data) redirect("/events/join?error=unavailable");
   redirect(`/events/${data}`);
 }
+export const metadata = { title: "Join with invite code" };
 export default function Page(props: PageProps<"/events/join">) { return <Suspense fallback={<PageSkeleton />}><Content {...props} /></Suspense>; }
 async function Content({searchParams}: PageProps<"/events/join">) {
   await requireUser({next:"/events/join"}); const q = await searchParams;

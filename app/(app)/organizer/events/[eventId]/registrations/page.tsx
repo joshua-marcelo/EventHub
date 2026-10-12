@@ -6,6 +6,7 @@ import { decideRegistration } from "@/lib/mvp/actions";
 import { ActionControl } from "@/components/mvp/action-control";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageSkeleton } from "@/components/page-skeleton";
+export const metadata = { title: "Registrations" };
 export default function Page(props: PageProps<"/organizer/events/[eventId]/registrations">) { return <Suspense fallback={<PageSkeleton />}><Content {...props} /></Suspense>; }
 async function Content({ params,searchParams }: PageProps<"/organizer/events/[eventId]/registrations">) {
   const { eventId } = await params; const { event,user } = await getOwnedEvent(eventId);

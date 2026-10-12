@@ -79,19 +79,28 @@ for (const label of ["suspended","revoked"]) {
 }
 for (const path of ["/events","/events/join","/scan","/my-events","/certificates",`/certificates/${id}`,"/become-organizer"]) {
   const { response,html } = await get(path,participant);
-  check(`participant placeholder ${path}`, response.status === 200 && html.includes("Coming soon"));
+  check(`participant route renders ${path}`, response.status === 200 && !html.includes("Coming soon") && !html.includes("Something went wrong"));
 }
 for (const path of ["/organizer/events","/organizer/events/new","/organizer/reports",`/organizer/events/${id}`, ...["registrations","attendance","certificates","reports","settings"].map(tab => `/organizer/events/${id}/${tab}`)]) {
   const { response,html } = await get(path,organizer);
-  check(`organizer placeholder ${path}`, response.status === 200 && html.includes("Coming soon"));
+  check(`organizer route renders ${path}`, response.status === 200 && !html.includes("Coming soon") && !html.includes("Something went wrong"));
 }
 for (const path of ["/admin/applications",`/admin/applications/${id}`,"/admin/organizers","/admin/users",`/admin/users/${id}`,`/admin/events/${id}`]) {
   const { response,html } = await get(path,admin);
-  check(`admin placeholder ${path}`, response.status === 200 && html.includes("Coming soon"));
+  check(`admin route renders ${path}`, response.status === 200 && !html.includes("Coming soon") && !html.includes("Something went wrong"));
+}
+{
+  const { html } = await get("/admin/users?q=p3-participant", admin);
+  check("admin user search finds account by email", html.includes("p3-participant@eventhub.test") && html.includes("/admin/users/a3000000-0000-4000-8000-000000000001"));
+  const { html: detail } = await get("/admin/users/a3000000-0000-4000-8000-000000000001", admin);
+  check("admin user detail renders read-only summary", detail.includes("p3-participant@eventhub.test") && detail.includes("Read-only account summary"));
+  const { response, html: hostile } = await get("/admin/users?q=" + encodeURIComponent("a%,id.neq.0)"), admin);
+  check("user search strips filter syntax", response.status === 200 && !hostile.includes("Something went wrong"));
 }
 {
   const { response,html } = await get(`/organizer/events/${id}/attendance/display`,organizer);
-  check("attendance display omits top bar and sidebar", response.status === 200 && html.includes("Exit display") && !html.includes("<header") && !html.includes("<aside"));
+  // The ID is unknown, so the display shows its not-found state; it must still omit the app shell.
+  check("attendance display omits top bar and sidebar", response.status === 200 && !html.includes("<header") && !html.includes("<aside"));
 }
 for (const path of ["/verify", "/verify/example"]) check(`public ${path} placeholder`, (await get(path)).response.status === 200);
 {

@@ -7,6 +7,7 @@ import { reviewApplication } from "@/lib/mvp/actions";
 import { ActionControl } from "@/components/mvp/action-control";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageSkeleton } from "@/components/page-skeleton";
+export const metadata = { title: "Application review" };
 export default function Page({ params }: PageProps<"/admin/applications/[applicationId]">) { return <Suspense fallback={<PageSkeleton />}><Content params={params} /></Suspense>; }
 async function Content({ params }: Pick<PageProps<"/admin/applications/[applicationId]">,"params">) {
   const user = await requireAdmin(); const { applicationId } = await params;

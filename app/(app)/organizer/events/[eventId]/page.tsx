@@ -9,6 +9,7 @@ import { SharePanel } from "@/components/mvp/share-panel";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { formatDateTime } from "@/lib/datetime";
+export const metadata = { title: "Manage event" };
 export default function Page({ params }: PageProps<"/organizer/events/[eventId]">) { return <Suspense fallback={<PageSkeleton />}><Content params={params} /></Suspense>; }
 async function Content({ params }: Pick<PageProps<"/organizer/events/[eventId]">,"params">) {
   const { eventId } = await params; const { event:e,user } = await getOwnedEvent(eventId);

@@ -7,6 +7,7 @@ import { EventForm } from "@/components/mvp/event-form";
 import { PosterUpload } from "@/components/mvp/poster-upload";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageSkeleton } from "@/components/page-skeleton";
+export const metadata = { title: "Event settings" };
 export default function Page({ params }: PageProps<"/organizer/events/[eventId]/settings">) { return <Suspense fallback={<PageSkeleton />}><Content params={params} /></Suspense>; }
 async function Content({ params }: Pick<PageProps<"/organizer/events/[eventId]/settings">,"params">) {
   const { eventId } = await params; const { event,user } = await getOwnedEvent(eventId); const lookups = await eventLookups();

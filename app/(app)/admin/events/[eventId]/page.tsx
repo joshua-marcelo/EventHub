@@ -7,6 +7,7 @@ import { eventAction } from "@/lib/mvp/actions";
 import { ActionControl } from "@/components/mvp/action-control";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageSkeleton } from "@/components/page-skeleton";
+export const metadata = { title: "Event review" };
 export default function Page({params}: PageProps<"/admin/events/[eventId]">) { return <Suspense fallback={<PageSkeleton />}><Content params={params} /></Suspense>; }
 async function Content({params}: Pick<PageProps<"/admin/events/[eventId]">,"params">) {
   await requireAdmin(); const {eventId} = await params; if (!idSchema.safeParse(eventId).success) notFound();

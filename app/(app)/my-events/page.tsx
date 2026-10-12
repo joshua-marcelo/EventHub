@@ -7,6 +7,7 @@ import { ActionControl } from "@/components/mvp/action-control";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { formatDateTime } from "@/lib/datetime";
+export const metadata = { title: "My events" };
 export default function Page() { return <Suspense fallback={<PageSkeleton />}><Content /></Suspense>; }
 async function Content() {
   const user = await requireUser({ next:"/my-events" }); const client = await createClient();

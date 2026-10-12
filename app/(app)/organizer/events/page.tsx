@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { buttonVariants } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/datetime";
+export const metadata = { title: "Organizer events" };
 export default function Page() { return <Suspense fallback={<PageSkeleton />}><Content /></Suspense>; }
 async function Content() {
   const user = await requireOrganizer({ allowInactive:true });

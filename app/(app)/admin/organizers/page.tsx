@@ -5,6 +5,7 @@ import { changeOrganizerStatus } from "@/lib/mvp/actions";
 import { ActionControl } from "@/components/mvp/action-control";
 import { PageHeader } from "@/components/shared/page-header";
 import { PageSkeleton } from "@/components/page-skeleton";
+export const metadata = { title: "Organizers" };
 export default function Page() { return <Suspense fallback={<PageSkeleton />}><Content /></Suspense>; }
 async function Content() {
   await requireAdmin();
