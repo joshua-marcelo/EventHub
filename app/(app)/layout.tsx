@@ -8,5 +8,5 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 }
 async function SessionShell({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
-  return <AppShell user={user ? { name: user.profile.first_name || "Account", email: user.email, isAdmin: user.isAdmin, isComplete: user.isComplete, organizerStatus: user.organizerStatus } : null}>{children}</AppShell>;
+  return <AppShell user={user ? { name: user.profile.first_name ?? "", email: user.email, isAdmin: user.isAdmin, isComplete: user.isComplete, organizerStatus: user.organizerStatus } : null}>{children}</AppShell>;
 }

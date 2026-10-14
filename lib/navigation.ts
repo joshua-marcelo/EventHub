@@ -2,19 +2,17 @@ import type { Database } from "@/lib/database.types";
 
 export type Dashboard = "participant" | "organizer" | "admin";
 export type Permissions = { isAdmin: boolean; isComplete: boolean; organizerStatus: Database["public"]["Enums"]["organizer_status"] };
+// `destination` and `description` name the switch link shown in the other dashboards.
 export const dashboards = {
-  participant: { label: "Participant", href: "/dashboard" },
-  organizer: { label: "Organizer", href: "/organizer" },
-  admin: { label: "Admin", href: "/admin" },
+  participant: { label: "Participant", href: "/dashboard", destination: "Participant Dashboard", description: "Switch to participant view" },
+  organizer: { label: "Organizer", href: "/organizer", destination: "Organizer Dashboard", description: "Switch to organizer view" },
+  admin: { label: "Admin", href: "/admin", destination: "Admin Dashboard", description: "Switch to admin view" },
 } as const;
 export const navigation = {
   participant: [
     { label: "Home", href: "/dashboard", icon: "home" },
-    { label: "Explore", href: "/events", icon: "explore" },
-    { label: "Scan", href: "/scan", icon: "scan" },
     { label: "My Events", href: "/my-events", icon: "events" },
     { label: "Certificates", href: "/certificates", icon: "certificates" },
-    { label: "Become an organizer", href: "/become-organizer", icon: "organizer" },
   ],
   organizer: [
     { label: "Overview", href: "/organizer", icon: "home" },
@@ -23,10 +21,11 @@ export const navigation = {
   ],
   admin: [
     { label: "Overview", href: "/admin", icon: "home" },
-    { label: "Applications", href: "/admin/applications", icon: "organizer" },
-    { label: "Organizers", href: "/admin/organizers", icon: "people" },
-    { label: "Users", href: "/admin/users", icon: "people" },
-    { label: "Lookups", href: "/admin/lookups", icon: "settings" },
+    { label: "Applications", href: "/admin/applications", icon: "applications" },
+    { label: "Organizers", href: "/admin/organizers", icon: "organizers" },
+    // Every account is a participant (sign-up always creates one); roles are added on top.
+    { label: "Participants", href: "/admin/users", icon: "people" },
+    { label: "Reference Data", href: "/admin/lookups", icon: "reference" },
   ],
 } as const;
 export function permittedDashboards(user: Permissions): Dashboard[] {
@@ -39,6 +38,7 @@ export function dashboardForPath(path: string): Dashboard {
   return "participant";
 }
 export function isActiveLink(path: string, href: string) {
+  if (href === "/dashboard" && (path === "/events" || path.startsWith("/events/"))) return true;
   return path === href || (!["/dashboard", "/admin", "/organizer"].includes(href) && path.startsWith(`${href}/`));
 }
 export function isAttendanceDisplay(path: string) { return /^\/organizer\/events\/[^/]+\/attendance\/display\/?$/.test(path); }
