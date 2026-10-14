@@ -1,14 +1,10 @@
-import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { type ReactNode, Suspense } from "react";
+import { Suspense } from "react";
 
 import { PageSkeleton } from "@/components/page-skeleton";
-import { AvatarUpload } from "@/components/profile/avatar-upload";
-import { PrivacyConsent } from "@/components/profile/privacy-consent";
-import { ProfileForm } from "@/components/profile/profile-form";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { OnboardingWizard } from "@/components/profile/onboarding-wizard";
 import { requireUser } from "@/lib/auth/dal";
 import { DEFAULT_AFTER_LOGIN, safeNextPath } from "@/lib/auth/redirect";
 import { initialsOf, toFormDefaults } from "@/lib/profile/form-defaults";
@@ -42,7 +38,7 @@ async function Onboarding({ searchParams }: Pick<PageProps<"/onboarding">, "sear
   const photoDone = Boolean(p.avatar_path);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">Complete your profile</h1>
         <p className="text-sm text-muted-foreground">
@@ -58,58 +54,9 @@ async function Onboarding({ searchParams }: Pick<PageProps<"/onboarding">, "sear
         ) : null}
       </div>
 
-      <Step number={1} title="Privacy notice" done={consented} description="How EventHub uses your personal data.">
-        {consented ? <p className="text-sm text-muted-foreground">Accepted.</p> : <PrivacyConsent />}
-      </Step>
-
-      <Step
-        number={2}
-        title="Student details"
-        done={detailsDone}
-        description="Use the details printed on your school ID."
-      >
-        <ProfileForm
-          defaults={toFormDefaults(user)}
-          colleges={options.colleges}
-          programs={options.programs}
-          submitLabel={detailsDone ? "Update details" : "Save details"}
-        />
-      </Step>
-
-      <Step number={3} title="Profile photo" done={photoDone} description="Required so organizers can recognize you at check-in.">
-        <AvatarUpload userId={user.id} currentUrl={avatarUrl} initials={initialsOf(user)} />
-      </Step>
+      <OnboardingWizard consented={consented} detailsDone={detailsDone} photoDone={photoDone}
+        defaults={toFormDefaults(user)} colleges={options.colleges} programs={options.programs}
+        userId={user.id} avatarUrl={avatarUrl} initials={initialsOf(user)} next={next} />
     </div>
-  );
-}
-
-function Step({
-  number,
-  title,
-  description,
-  done,
-  children,
-}: {
-  number: number;
-  title: string;
-  description: string;
-  done: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {done ? (
-            <CheckCircle2Icon className="size-5 text-emerald-600" aria-label="Done" />
-          ) : (
-            <CircleIcon className="size-5 text-muted-foreground" aria-label="To do" />
-          )}
-          {number}. {title}
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
   );
 }

@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { acceptPrivacyNotice } from "@/lib/profile/actions";
 
-export function PrivacyConsent() {
+export function PrivacyConsent({ onSaved, submitLabel = "I agree" }: { onSaved?: () => void; submitLabel?: string }) {
   const router = useRouter();
   const [checked, setChecked] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -20,7 +20,7 @@ export function PrivacyConsent() {
     setError(null);
     startTransition(async () => {
       const result = await acceptPrivacyNotice();
-      if (result.ok) router.refresh();
+      if (result.ok) { onSaved?.(); router.refresh(); }
       else setError(result.error);
     });
   };
@@ -44,7 +44,7 @@ export function PrivacyConsent() {
         </FieldLabel>
       </Field>
       <Button type="button" onClick={accept} disabled={!checked || pending} className="self-start">
-        {pending ? "Saving…" : "I agree"}
+        {pending ? "Saving…" : submitLabel}
       </Button>
     </div>
   );

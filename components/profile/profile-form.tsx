@@ -21,11 +21,15 @@ export function ProfileForm({
   colleges,
   programs,
   submitLabel = "Save details",
+  onSaved,
+  compact = false,
 }: {
   defaults: ProfileFormInput;
   colleges: CollegeOption[];
   programs: ProgramOption[];
   submitLabel?: string;
+  onSaved?: () => void;
+  compact?: boolean;
 }) {
   const router = useRouter();
   const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
@@ -48,6 +52,7 @@ export function ProfileForm({
       const result = await saveProfile(input);
       if (result.ok) {
         toast.success(result.message ?? "Saved.");
+        onSaved?.();
         router.refresh();
         return;
       }
@@ -65,7 +70,7 @@ export function ProfileForm({
   });
 
   return (
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} noValidate className={`flex flex-col gap-4 ${compact ? "[&_input]:h-10 [&_select]:h-10" : ""}`}>
       {formError ? <FormAlert>{formError}</FormAlert> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <TextField label="First name" autoComplete="given-name" error={errors.firstName?.message} {...form.register("firstName")} />

@@ -2,7 +2,7 @@
 
 import { CameraIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { FormAlert } from "@/components/forms/form-alert";
@@ -21,16 +21,21 @@ export function AvatarUpload({
   userId,
   currentUrl,
   initials,
+  onSaved,
+  refreshOnSave = true,
 }: {
   userId: string;
   currentUrl: string | null;
   initials: string;
+  onSaved?: () => void;
+  refreshOnSave?: boolean;
 }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
   const onFile = (file: File | undefined) => {
     setError(null);
@@ -67,7 +72,8 @@ export function AvatarUpload({
         }
         setPreview(URL.createObjectURL(blob));
         toast.success("Photo saved.");
-        router.refresh();
+        onSaved?.();
+        if (refreshOnSave) router.refresh();
       } catch {
         setError("The photo could not be processed. Try a different file.");
       } finally {
@@ -79,7 +85,7 @@ export function AvatarUpload({
   const src = preview ?? currentUrl ?? undefined;
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
         <Avatar className="size-20">
           {src ? <AvatarImage src={src} alt="Your profile photo" /> : null}
           <AvatarFallback className="text-lg">{initials}</AvatarFallback>
@@ -92,6 +98,7 @@ export function AvatarUpload({
           <p className="text-xs text-muted-foreground">
             A clear photo of your face. Organizers use it to recognize you at events.
           </p>
+          <p className="text-xs text-muted-foreground">JPG, PNG or WEBP, up to 15 MB. Photos are resized before upload.</p>
         </div>
         <input
           ref={input}
