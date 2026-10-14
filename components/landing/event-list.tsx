@@ -8,7 +8,7 @@ export async function PublicEventList() {
   const client = await createClient();
   const { data: events, error } = await client.rpc("get_upcoming_public_events");
   if (error) return <p className="rounded-lg border border-stone-200 bg-white p-6 text-slate-600">The event calendar is temporarily unavailable. Please try again shortly.</p>;
-  if (!events.length) return <div className="flex flex-wrap items-center justify-between gap-5 border-y border-stone-200 py-8"><div><p className="text-lg font-semibold text-slate-900">The next campus moment is on its way.</p><p className="mt-2 text-sm text-slate-600">Public events will appear here as organizers publish them.</p></div><Link href="/become-organizer" className="font-semibold text-orange-800 underline underline-offset-4">Become an organizer <span aria-hidden="true">↗</span></Link></div>;
+  if (!events.length) return <div className="border-y border-stone-200 py-8"><p className="text-lg font-semibold text-slate-900">No upcoming events yet.</p><p className="mt-2 text-sm text-slate-600">Published events will appear here.</p></div>;
   return <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{events.map(event => {
     const poster = event.banner_path ? client.storage.from("event-banners").getPublicUrl(event.banner_path).data.publicUrl : null;
     return <article key={event.id} className="overflow-hidden rounded-xl border border-stone-200 bg-white">

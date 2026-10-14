@@ -1,0 +1,41 @@
+/* Keep native anchor behavior with the header in development and production. */
+html:has([data-landing-nav]) {
+  scroll-behavior: smooth;
+}
+
+[data-landing-nav] ~ main section[id] {
+  scroll-margin-top: calc(var(--landing-nav-height, calc(4rem + 1px)) + 12px);
+}
+
+[data-landing-nav] .landing-nav-label {
+  position: relative;
+  display: inline-block;
+}
+
+[data-landing-nav] .landing-nav-label::after {
+  content: "";
+  position: absolute;
+  bottom: -5px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: #c45116;
+  opacity: 0;
+  transition: width 180ms ease, opacity 180ms ease;
+}
+
+[data-landing-nav] .landing-section-link:is(:hover, :focus-visible, [aria-current="location"]) .landing-nav-label::after {
+  width: 100%;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has([data-landing-nav]) {
+    scroll-behavior: auto;
+  }
+
+  [data-landing-nav] .landing-section-link,
+  [data-landing-nav] .landing-nav-label::after {
+    transition: none;
+  }
+}
