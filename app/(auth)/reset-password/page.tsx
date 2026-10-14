@@ -23,7 +23,7 @@ async function ResetPassword() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle><h1>Choose a new password</h1></CardTitle>
+        <CardTitle><h1>Set a new password</h1></CardTitle>
         <CardDescription>Choose a strong password. Other devices will be signed out.</CardDescription>
       </CardHeader>
       <CardContent>

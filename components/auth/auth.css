@@ -1,0 +1,51 @@
+.auth-shell a:not([data-slot="button"]) { color: #9a3412; text-underline-offset: 4px; }
+.auth-shell a:not([data-slot="button"]):hover { text-decoration: underline; }
+.auth-shell a:has(img) { color: inherit; }
+.auth-shell a:focus-visible, .auth-shell button:focus-visible {
+  outline: 2px solid #c45116;
+  outline-offset: 3px;
+}
+.auth-shell [data-slot="card"] {
+  width: 100%;
+  max-width: 440px;
+  margin-inline: auto;
+  border: 1px solid #e7e5e4;
+  border-radius: 14px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: none;
+  --card-spacing: 24px;
+  gap: 24px;
+}
+.auth-shell [data-slot="card"].auth-signup { max-width: 480px; }
+.auth-shell [data-slot="card-header"] { gap: 8px; }
+.auth-shell [data-slot="card-title"] { font-size: 24px; font-weight: 600; line-height: 1.25; letter-spacing: -0.025em; }
+.auth-shell [data-slot="card-description"] { color: #475569; line-height: 1.6; }
+.auth-shell [data-slot="card-footer"] {
+  flex-wrap: wrap;
+  justify-content: center;
+  border-color: #e7e5e4;
+  background: #fff;
+  padding-top: 20px;
+  text-align: center;
+  color: #475569;
+}
+.auth-shell [data-slot="input"] {
+  height: 44px;
+  padding-inline: 12px;
+  border-color: #d6d3d1;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 16px;
+}
+.auth-shell [data-slot="input"]:focus-visible { border-color: #c45116; }
+.auth-shell [data-slot="input"][aria-invalid="true"] { border-color: var(--destructive); }
+.auth-shell [data-slot="field-label"] { color: #0f172a; }
+.auth-shell [data-slot="field-description"] { color: #64748b; line-height: 1.5; }
+.auth-shell [data-slot="button"] { min-height: 40px; border-radius: 8px; }
+.auth-shell button[type="submit"] { min-height: 44px; font-weight: 600; }
+.auth-shell .auth-password-input { padding-right: 48px; }
+@media (min-width: 640px) {
+  .auth-shell [data-slot="card"] { --card-spacing: 28px; }
+}

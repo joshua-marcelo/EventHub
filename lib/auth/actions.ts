@@ -164,6 +164,18 @@ export async function updatePassword(input: ResetPasswordInput, recovery?: Recov
   return { ok: true, message: "Your password was changed. Other devices were signed out." };
 }
 
+/**
+ * Ends this browser's session and returns to the landing page. Clearing the auth cookies in an
+ * action also invalidates the client router cache, so Back cannot replay a signed-in page.
+ * On failure the session is kept, and the caller says so instead of pretending it worked.
+ */
+export async function signOut(): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signOut();
+  if (error) return { ok: false, error: "We couldn’t log you out. Check your connection and try again.", code: error.code };
+  redirect("/");
+}
+
 /** P-29: revoke every session of this account (lost or unattended device). */
 export async function signOutEverywhere(): Promise<void> {
   const supabase = await createClient();

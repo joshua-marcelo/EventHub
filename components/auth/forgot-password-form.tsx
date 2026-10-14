@@ -39,22 +39,22 @@ export function ForgotPasswordForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle><h1>Reset your password</h1></CardTitle>
-        <CardDescription>Enter your account email. The link in the email is valid for 1 hour.</CardDescription>
+        <CardTitle><h1>Forgot your password?</h1></CardTitle>
+        <CardDescription>Enter your email address to receive password reset instructions.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
           {notice ? <FormAlert tone={notice.ok ? "success" : "error"}>{notice.text}</FormAlert> : null}
-          <TextField label="Email" type="email" autoComplete="email" error={form.formState.errors.email?.message} {...form.register("email")} />
+          <TextField label="Email address" type="email" autoComplete="email" error={form.formState.errors.email?.message} {...form.register("email")} />
           <Turnstile {...captcha.widgetProps} />
           <Button type="submit" disabled={pending || !captcha.ready}>
-            {pending ? "Sending…" : "Send reset link"}
+            {pending ? "Sending…" : "Send Reset Link"}
           </Button>
         </form>
       </CardContent>
       <CardFooter className="text-sm">
         <Link href="/login" className="underline-offset-4 hover:underline">
-          Back to log in
+          Back to Log In
         </Link>
       </CardFooter>
     </Card>

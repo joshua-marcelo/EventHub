@@ -15,6 +15,7 @@ import { type LoginInput, loginSchema } from "@/lib/validation/auth";
 
 import { Turnstile } from "./turnstile";
 import { useCaptcha } from "./use-captcha";
+import { PasswordField } from "./password-field";
 
 export function LoginForm() {
   const searchParams = useSearchParams();
@@ -62,13 +63,14 @@ export function LoginForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle><h1>Log in</h1></CardTitle>
+        <CardTitle><h1>Welcome back</h1></CardTitle>
         <CardDescription>
-          {forEvent ? "Log in or create an account to view this event." : "Use the email and password you signed up with."}
+          Log in to your EventHub account.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+          {forEvent ? <FormAlert tone="info">Log in or create an account to view this event.</FormAlert> : null}
           {signedOutEverywhere ? (
             <FormAlert tone="success">You were signed out on all devices.</FormAlert>
           ) : null}
@@ -85,28 +87,25 @@ export function LoginForm() {
             </FormAlert>
           ) : null}
           {resendNotice ? <FormAlert tone={resendNotice.ok ? "success" : "error"}>{resendNotice.text}</FormAlert> : null}
-          <TextField label="Email" type="email" autoComplete="email" error={errors.email?.message} {...form.register("email")} />
-          <TextField
+          <TextField label="Email address" type="email" autoComplete="email" error={errors.email?.message} {...form.register("email")} />
+          <PasswordField
             label="Password"
-            type="password"
             autoComplete="current-password"
             error={errors.password?.message}
             {...form.register("password")}
           />
+          <Link href="/forgot-password" className="-mt-1 w-fit self-end text-sm underline-offset-4 hover:underline">Forgot password?</Link>
           <Turnstile {...captcha.widgetProps} />
           <Button type="submit" disabled={pending || !captcha.ready}>
-            {pending ? "Logging in…" : "Log in"}
+            {pending ? "Logging in…" : "Log In"}
           </Button>
         </form>
       </CardContent>
       <CardFooter className="flex flex-col gap-2 text-sm">
-        <Link href="/forgot-password" className="underline-offset-4 hover:underline">
-          Forgot your password?
-        </Link>
         <p className="text-muted-foreground">
-          New to EventHub?{" "}
+          Don&apos;t have an account?{" "}
           <Link href={signUpHref} className="text-foreground underline-offset-4 hover:underline">
-            Create an account
+            Sign Up
           </Link>
         </p>
       </CardFooter>

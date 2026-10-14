@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import { FormAlert } from "@/components/forms/form-alert";
-import { TextField } from "@/components/forms/text-field";
+import { PasswordField } from "./password-field";
 import { Button } from "@/components/ui/button";
 import { updatePassword } from "@/lib/auth/actions";
 import { type RecoveryCredential, readRecoveryLink, recoveryLinkError, recoveryLinkPresent } from "@/lib/auth/recovery";
@@ -83,23 +83,21 @@ export function ResetPasswordForm({ hasSession = false }: { hasSession?: boolean
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
       {formError ? <FormAlert>{formError}</FormAlert> : null}
-      <TextField
+      <PasswordField
         label="New password"
-        type="password"
         autoComplete="new-password"
         description="At least 8 characters with letters and numbers."
         error={errors.password?.message}
         {...form.register("password")}
       />
-      <TextField
+      <PasswordField
         label="Confirm new password"
-        type="password"
         autoComplete="new-password"
         error={errors.confirmPassword?.message}
         {...form.register("confirmPassword")}
       />
       <Button type="submit" disabled={pending}>
-        {pending ? "Saving…" : "Save new password"}
+        {pending ? "Updating…" : "Update Password"}
       </Button>
     </form>
   );

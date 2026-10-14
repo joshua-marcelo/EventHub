@@ -60,6 +60,7 @@ export function safeNextPath(
 
 const PUBLIC_EXACT = new Set([
   "/",
+  "/demo",
   "/login",
   "/signup",
   "/signup/check-email",

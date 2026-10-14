@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { AuthCardSkeleton } from "@/components/auth/auth-card-skeleton";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { ResendConfirmation } from "@/components/auth/resend-confirmation";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -10,16 +11,11 @@ export const metadata: Metadata = { title: "Link problem", robots: { index: fals
 
 export default function AuthErrorPage({ searchParams }: PageProps<"/auth/error">) {
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center bg-muted/30 px-4 py-10">
-      <Link href="/" className="mb-6 text-lg font-semibold tracking-tight">
-        EventHub
-      </Link>
-      <main className="w-full max-w-sm">
+    <AuthShell>
         <Suspense fallback={<AuthCardSkeleton />}>
           <AuthError searchParams={searchParams} />
         </Suspense>
-      </main>
-    </div>
+    </AuthShell>
   );
 }
 

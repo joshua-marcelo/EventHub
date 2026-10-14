@@ -1,6 +1,8 @@
 "use client";
 
 import { useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
+import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -14,16 +16,33 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { signOutEverywhere } from "@/lib/auth/actions";
+import { signOut, signOutEverywhere } from "@/lib/auth/actions";
 
-/** Signs out this browser (POST, so links cannot trigger it). */
+/**
+ * Signs out this browser through a Server Action (so links cannot trigger it); success redirects
+ * to `/`. Only a real failure is reported: the action's own error, or no connection at all.
+ */
+export function useSignOut() {
+  const [pending, startTransition] = useTransition();
+  const signOutNow = () => startTransition(async () => {
+    try {
+      const result = await signOut();
+      if (!result.ok) toast.error(result.error);
+    } catch (error) {
+      // The successful redirect arrives as a Next.js navigation error; let the router handle it.
+      unstable_rethrow(error);
+      toast.error("We couldn’t reach EventHub to log you out. Check your connection and try again.");
+    }
+  });
+  return [pending, signOutNow] as const;
+}
+
 export function SignOutButton({ variant = "outline" }: { variant?: "outline" | "ghost" }) {
+  const [pending, signOutNow] = useSignOut();
   return (
-    <form action="/auth/signout" method="post">
-      <Button type="submit" variant={variant}>
-        Log out
-      </Button>
-    </form>
+    <Button type="button" variant={variant} disabled={pending} aria-busy={pending} onClick={signOutNow}>
+      {pending ? "Logging out…" : "Log out"}
+    </Button>
   );
 }
 

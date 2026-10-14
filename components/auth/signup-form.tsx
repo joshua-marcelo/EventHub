@@ -15,6 +15,7 @@ import { type SignUpInput, signUpSchema } from "@/lib/validation/auth";
 
 import { Turnstile } from "./turnstile";
 import { useCaptcha } from "./use-captcha";
+import { PasswordField } from "./password-field";
 
 export function SignUpForm() {
   const next = useSearchParams().get("next") ?? undefined;
@@ -43,39 +44,37 @@ export function SignUpForm() {
   const { errors } = form.formState;
 
   return (
-    <Card>
+    <Card className="auth-signup">
       <CardHeader>
         <CardTitle><h1>Create your account</h1></CardTitle>
         <CardDescription>
-          We will email you a link to confirm your address. After that you complete your student profile.
+          Sign up to get started with EventHub.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
           {formError ? <FormAlert>{formError}</FormAlert> : null}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-4 min-[400px]:grid-cols-2 min-[400px]:gap-3">
             <TextField label="First name" autoComplete="given-name" error={errors.firstName?.message} {...form.register("firstName")} />
             <TextField label="Last name" autoComplete="family-name" error={errors.lastName?.message} {...form.register("lastName")} />
           </div>
           <TextField
-            label="Email"
+            label="Email address"
             type="email"
             autoComplete="email"
-            description="Your personal email. You will use it to log in and to reset your password."
+            description="Use your personal email. Confirm it to continue to student profile setup."
             error={errors.email?.message}
             {...form.register("email")}
           />
-          <TextField
+          <PasswordField
             label="Password"
-            type="password"
             autoComplete="new-password"
             description="At least 8 characters with letters and numbers."
             error={errors.password?.message}
             {...form.register("password")}
           />
-          <TextField
+          <PasswordField
             label="Confirm password"
-            type="password"
             autoComplete="new-password"
             error={errors.confirmPassword?.message}
             {...form.register("confirmPassword")}
@@ -96,7 +95,7 @@ export function SignUpForm() {
       <CardFooter className="text-sm text-muted-foreground">
         Already have an account?&nbsp;
         <Link href={loginHref} className="text-foreground underline-offset-4 hover:underline">
-          Log in
+          Log In
         </Link>
       </CardFooter>
     </Card>

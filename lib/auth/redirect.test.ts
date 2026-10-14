@@ -55,6 +55,11 @@ describe("safeNextPath", () => {
 });
 
 describe("isPublicPath", () => {
+  it("allows the demo placeholder without exposing nested routes", () => {
+    expect(isPublicPath("/demo")).toBe(true);
+    expect(isPublicPath("/demo/settings")).toBe(false);
+  });
+
   it("allows auth pages, privacy, verification and the event preview", () => {
     for (const p of ["/", "/login", "/signup", "/signup/check-email", "/forgot-password", "/reset-password", "/privacy", "/auth/confirm", "/auth/error", "/verify", "/verify/abc", "/events/123e4567-e89b-42d3-a456-426614174000"]) {
       expect(isPublicPath(p), p).toBe(true);
