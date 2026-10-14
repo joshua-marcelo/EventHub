@@ -1,16 +1,65 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth/dal";
-import { createClient } from "@/lib/supabase/server";
-import { PageHeader } from "@/components/shared/page-header";
+import { InboxIcon } from "lucide-react";
+
+import { FilterTabs, PanelEmpty, fullName } from "@/components/admin/admin-ui";
 import { PageSkeleton } from "@/components/page-skeleton";
-import { formatDateTime } from "@/lib/datetime";
+import { DataTable } from "@/components/shared/data-table";
+import { PageHeader } from "@/components/shared/page-header";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { buttonVariants } from "@/components/ui/button";
+import { requireAdmin } from "@/lib/auth/dal";
+import type { Database } from "@/lib/database.types";
+import { formatDate } from "@/lib/datetime";
+import { createClient } from "@/lib/supabase/server";
+
 export const metadata = { title: "Organizer applications" };
-export default function Page() { return <Suspense fallback={<PageSkeleton />}><Content /></Suspense>; }
-async function Content() {
+
+type Status = Database["public"]["Enums"]["application_status"];
+const filters: { value: Status | "all"; label: string }[] = [
+  { value: "pending", label: "Pending" }, { value: "approved", label: "Approved" }, { value: "rejected", label: "Rejected" }, { value: "withdrawn", label: "Withdrawn" }, { value: "all", label: "All" },
+];
+const emptyText: Record<Status | "all", [string, string]> = {
+  pending: ["No pending applications", "New organizer applications will appear here for review."],
+  approved: ["No approved applications", "Approved applications will be listed here."],
+  rejected: ["No rejected applications", "Rejected applications will be listed here."],
+  withdrawn: ["No withdrawn applications", "Applications withdrawn by applicants will be listed here."],
+  all: ["No applications yet", "Organizer applications submitted by participants will appear here."],
+};
+
+export default function Page({ searchParams }: PageProps<"/admin/applications">) {
+  return <div className="space-y-6">
+    <PageHeader title="Organizer Applications" description="Review proof of authorization before approving. Pending applications are listed oldest first." />
+    <Suspense fallback={<PageSkeleton />}><Content searchParams={searchParams} /></Suspense>
+  </div>;
+}
+
+async function Content({ searchParams }: Pick<PageProps<"/admin/applications">, "searchParams">) {
   await requireAdmin();
-  const { data, error } = await (await createClient()).from("organizer_applications").select("id,organization_name,position_title,status,submitted_at").order("submitted_at").limit(200);
+  const requested = (await searchParams).status;
+  const current = filters.find(f => f.value === requested)?.value ?? "pending";
+  const { data, error } = await (await createClient()).from("organizer_applications")
+    .select("id,organization_name,position_title,status,submitted_at,applicant:profiles!organizer_applications_applicant_id_fkey(first_name,last_name,student_id)")
+    .order("submitted_at").limit(200);
   if (error) throw new Error("Could not load applications.");
-  const apps = data.toSorted((a,b) => Number(b.status === "pending") - Number(a.status === "pending"));
-  return <div className="space-y-6"><PageHeader title="Organizer applications" description="Pending applications first, oldest first. Review proof before approving." />{apps.length ? <ul className="space-y-3">{apps.map(a => <li key={a.id} className="rounded border p-4"><Link href={`/admin/applications/${a.id}`} className="font-medium underline">{a.organization_name}</Link><p>{a.position_title} · {a.status}</p><p className="text-sm text-muted-foreground">{formatDateTime(a.submitted_at)}</p></li>)}</ul> : <p>No applications yet.</p>}</div>;
+  // Same rows as before: pending first, oldest first; the filter only narrows what is shown.
+  const all = data.toSorted((a, b) => Number(b.status === "pending") - Number(a.status === "pending"));
+  const rows = current === "all" ? all : all.filter(a => a.status === current);
+  const [emptyTitle, emptyDescription] = emptyText[current];
+
+  return <div className="space-y-4">
+    <FilterTabs label="Filter applications by status" current={current} options={filters.map(f => ({ ...f, count: f.value === "all" ? all.length : all.filter(a => a.status === f.value).length, href: `/admin/applications?status=${f.value}` }))} />
+    <DataTable caption="Organizer applications" rowKey={a => a.id} rows={rows} empty={<PanelEmpty icon={InboxIcon} title={emptyTitle} description={emptyDescription} />} columns={[
+      { key: "organization", label: "Organization", render: a => <div className="min-w-0">
+        <Link href={`/admin/applications/${a.id}`} className="font-medium hover:underline">{a.organization_name}</Link>
+        <p className="text-xs text-muted-foreground md:hidden">{fullName(a.applicant)}</p>
+        <div className="mt-1.5 sm:hidden"><StatusBadge status={a.status} /></div>
+      </div> },
+      { key: "applicant", label: "Applicant", className: "hidden md:table-cell", render: a => <div><p>{fullName(a.applicant)}</p>{a.applicant?.student_id && <p className="text-xs text-muted-foreground">{a.applicant.student_id}</p>}</div> },
+      { key: "position", label: "Position", className: "hidden lg:table-cell", render: a => a.position_title },
+      { key: "submitted", label: "Submitted", className: "hidden sm:table-cell", render: a => <span className="whitespace-nowrap text-muted-foreground">{formatDate(a.submitted_at)}</span> },
+      { key: "status", label: "Status", className: "hidden sm:table-cell", render: a => <StatusBadge status={a.status} /> },
+      { key: "action", label: "Action", className: "text-right", render: a => <Link href={`/admin/applications/${a.id}`} className={buttonVariants({ variant: a.status === "pending" ? "default" : "outline", size: "sm" })}>{a.status === "pending" ? "Review" : "View"}</Link> },
+    ]} />
+  </div>;
 }
