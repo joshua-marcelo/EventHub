@@ -26,6 +26,15 @@ const nextConfig: NextConfig = {
       // Token-bearing auth routes keep the stricter policy they set themselves (last match wins).
       { source: "/auth/:path*", headers: [{ key: "Referrer-Policy", value: "no-referrer" }] },
       { source: "/reset-password", headers: [{ key: "Referrer-Policy", value: "no-referrer" }] },
+      // Always revalidate the service worker so a deployment's new worker is picked up promptly.
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self'" },
+        ],
+      },
     ];
   },
   turbopack: {
