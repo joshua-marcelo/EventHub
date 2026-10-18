@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/action-result";
 
-export function ActionControl({ label, runAction, reason = false, confirm = false }: { label: string; runAction: (reason: string) => Promise<ActionResult>; reason?: boolean; confirm?: boolean }) {
+export function ActionControl({ label, runAction, reason = false, confirm = false, variant = "outline" }: { label: string; runAction: (reason: string) => Promise<ActionResult>; reason?: boolean; confirm?: boolean; variant?: "default" | "outline" }) {
   const [message, setMessage] = useState("");
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -18,7 +18,7 @@ export function ActionControl({ label, runAction, reason = false, confirm = fals
     });
   }}>
     {reason && <Input name="reason" required maxLength={1000} placeholder="Reason" aria-label={`Reason to ${label.toLowerCase()}`} />}
-    <Button type="submit" variant="outline" disabled={pending}>{pending ? "Saving…" : label}</Button>
+    <Button type="submit" variant={variant} disabled={pending}>{pending ? "Saving…" : label}</Button>
     {message && <p role="status" className="text-sm">{message}</p>}
   </form>;
 }
