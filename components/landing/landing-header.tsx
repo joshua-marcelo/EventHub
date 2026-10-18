@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type MouseEvent, useEffect, useId, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { BrandLogo } from "@/components/shared/brand-logo";
+import { LandingAccountMenu, type LandingAccount } from "@/components/landing/landing-account-menu";
 import { cn } from "@/lib/utils";
 import "./landing-header.css";
 
@@ -15,27 +16,16 @@ const links = [
 const button = "inline-flex h-11 items-center justify-center rounded-md px-4 text-sm font-semibold transition-colors active:translate-y-px";
 const loginButton = cn(button, "border border-stone-300 bg-white text-slate-900 hover:border-slate-500 hover:bg-stone-50");
 const signupButton = cn(button, "bg-slate-900 text-white hover:bg-slate-700");
-const SIGN_OUT_FORM = "landing-signout";
 
-/**
- * Guests get Log In / Sign Up. A signed-in visitor gets their dashboard and Log Out instead, so
- * no auth button silently bounces them to a dashboard (the proxy redirects auth pages when signed in).
- */
-function AccountActions({ dashboardHref, className }: { dashboardHref: string | null; className?: string }) {
-  if (!dashboardHref) {
-    return <>
-      <Link href="/login" className={cn(loginButton, className)}>Log In</Link>
-      <Link href="/signup" className={cn(signupButton, className)}>Sign Up</Link>
-    </>;
-  }
+function GuestActions({ className }: { className?: string }) {
   return <>
-    <button type="submit" form={SIGN_OUT_FORM} className={cn(loginButton, className)}>Log Out</button>
-    <Link href={dashboardHref} className={cn(signupButton, className)}>Go to Dashboard</Link>
+    <Link href="/login" className={cn(loginButton, className)}>Log In</Link>
+    <Link href="/signup" className={cn(signupButton, className)}>Sign Up</Link>
   </>;
 }
 
 /** Landing navigation: logo left, section links centered, account buttons right; a disclosure menu below `lg`. */
-export function LandingHeader({ dashboardHref = null }: { dashboardHref?: string | null }) {
+export function LandingHeader({ account }: { account?: LandingAccount | null }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState("");
   const [scrolled, setScrolled] = useState(false);
@@ -129,7 +119,9 @@ export function LandingHeader({ dashboardHref = null }: { dashboardHref?: string
         {links.map(link => <li key={link.href}><a href={link.href} aria-current={active === link.href ? "location" : undefined} className="landing-section-link inline-flex min-h-11 items-center rounded-sm py-2 transition-colors hover:text-orange-800 active:text-orange-900 aria-[current=location]:text-orange-800"><span className="landing-nav-label">{link.label}</span></a></li>)}
       </ul>
       <div className="flex items-center justify-end gap-3">
-        <AccountActions dashboardHref={dashboardHref} className="hidden sm:inline-flex" />
+        {account === undefined ? <span className="h-11 w-[68px] rounded-md bg-stone-100 sm:w-40" role="status"><span className="sr-only">Loading account</span></span>
+          : account ? <LandingAccountMenu account={account} />
+          : <GuestActions className="hidden sm:inline-flex" />}
         <button ref={toggle} type="button" aria-expanded={open} aria-controls={menuId} onClick={() => setOpen(value => !value)} className="inline-flex size-11 items-center justify-center rounded-md border border-stone-300 text-slate-900 hover:bg-stone-50 active:bg-stone-100 lg:hidden">
           {open ? <X className="size-5" aria-hidden="true" /> : <Menu className="size-5" aria-hidden="true" />}
           <span className="sr-only">{open ? "Close menu" : "Open menu"}</span>
@@ -140,11 +132,9 @@ export function LandingHeader({ dashboardHref = null }: { dashboardHref?: string
       <ul className="mx-auto max-w-6xl px-5 py-2 sm:px-8">
         {links.map(link => <li key={link.href}><a href={link.href} aria-current={active === link.href ? "location" : undefined} onClick={() => { setOpen(false); document.querySelector<HTMLElement>(link.href)?.focus({ preventScroll: true }); }} className="landing-section-link block border-b border-stone-100 py-3 text-sm font-medium text-slate-800 hover:text-orange-800 active:text-orange-900 aria-[current=location]:text-orange-800"><span className="landing-nav-label">{link.label}</span></a></li>)}
       </ul>
-      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-3 px-5 pb-5 pt-2 sm:hidden">
-        <AccountActions dashboardHref={dashboardHref} />
-      </div>
+      {account === null && <div className="mx-auto grid max-w-6xl grid-cols-2 gap-3 px-5 pb-5 pt-2 sm:hidden">
+        <GuestActions />
+      </div>}
     </div>
-    {/* POST only, like the app shell, so a link cannot sign anyone out; the route ends on /login. */}
-    {dashboardHref && <form id={SIGN_OUT_FORM} action="/auth/signout" method="post" hidden />}
   </header>;
 }

@@ -42,10 +42,15 @@ async function GetStarted() {
   return user ? <StartLink href={defaultDashboard(user)} label="Go to Dashboard" /> : <StartLink href="/signup" />;
 }
 
-// The session is request data, so the static shell shows the guest header until it streams in.
+// Resolve the verified session on the server; the static shell stays neutral while it streams.
 async function AccountHeader() {
   const user = await getCurrentUser();
-  return <LandingHeader dashboardHref={user ? defaultDashboard(user) : null} />;
+  const firstName = user?.profile.first_name?.trim() || "";
+  return <LandingHeader account={user ? {
+    dashboardHref: defaultDashboard(user),
+    firstName,
+    initial: (firstName || user.email || "A").slice(0, 1).toUpperCase(),
+  } : null} />;
 }
 
 export default function Home() {
@@ -63,7 +68,7 @@ export default function Home() {
               <p className="mt-5 max-w-md text-base leading-relaxed text-slate-600 sm:text-lg lg:text-xl">A centralized platform for university events, attendance management, and digital certificates.</p>
               {/* Stacked full width on narrow phones; side by side once both fit. */}
               <div className="mt-7 flex flex-col gap-3 min-[420px]:flex-row min-[420px]:items-center">
-                <Suspense fallback={<StartLink href="/signup" />}><GetStarted /></Suspense>
+                <Suspense fallback={<span className={`${startButton} min-w-48`} role="status"><span className="sr-only">Loading account</span><span aria-hidden="true">&nbsp;</span></span>}><GetStarted /></Suspense>
                 <Link href="/demo" className={demoButton}><CirclePlay className="size-[18px]" aria-hidden="true" />View Demo</Link>
               </div>
             </div>
