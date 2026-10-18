@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { isGuestOnlyPath, isPublicPath } from "@/lib/auth/redirect";
 import type { Database } from "@/lib/database.types";
+import { canViewOrganizerWorkspace, defaultDashboard } from "@/lib/navigation";
 
 /**
  * Refreshes the Supabase session cookie on every request and performs the optimistic
@@ -50,9 +51,9 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (signedIn && isGuestOnlyPath(pathname)) {
-    const { data: profile } = await supabase.from("profiles").select("is_admin, is_complete").eq("id", claims!.sub).maybeSingle();
+    const { data: profile } = await supabase.from("profiles").select("is_admin, is_complete, organizer_status").eq("id", claims!.sub).maybeSingle();
     const url = request.nextUrl.clone();
-    url.pathname = profile?.is_admin && !profile.is_complete ? "/admin" : "/dashboard";
+    url.pathname = defaultDashboard({ isAdmin: profile?.is_admin ?? false, isComplete: profile?.is_complete === true, organizerStatus: profile?.organizer_status ?? "none" });
     url.search = "";
     return redirectWithCookies(url, response);
   }
@@ -73,7 +74,7 @@ export async function updateSession(request: NextRequest) {
       response.cookies.getAll().forEach(cookie => denied.cookies.set(cookie));
       return denied;
     }
-    if (organizerPath && (!profile?.is_complete || profile.organizer_status === "none")) {
+    if (organizerPath && (!profile || !canViewOrganizerWorkspace({ isAdmin: profile.is_admin, organizerStatus: profile.organizer_status }))) {
       const url = request.nextUrl.clone();
       url.pathname = profile?.is_complete ? "/become-organizer" : "/onboarding";
       url.search = "";

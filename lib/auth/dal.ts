@@ -5,6 +5,7 @@ import { cache } from "react";
 
 import type { Database } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/server";
+import { canUseOrganizerTools, canViewOrganizerWorkspace } from "@/lib/navigation";
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 
@@ -91,10 +92,11 @@ export async function requireAdmin() {
   return user;
 }
 
-/** Organizer pages. Suspended/revoked organizers may read their own events when allowed. */
+/** Organizer pages: active organizers and admins. Suspended/revoked organizers may read their own events when allowed. */
 export async function requireOrganizer({ allowInactive = false }: { allowInactive?: boolean } = {}) {
-  const user = await requireUser();
-  const ok = user.organizerStatus === "active" || (allowInactive && user.organizerStatus !== "none");
+  // Organizer authorization is independent of student-profile completion.
+  const user = await requireUser({ allowIncomplete: true });
+  const ok = canUseOrganizerTools(user) || (allowInactive && canViewOrganizerWorkspace(user));
   if (!ok) redirect("/become-organizer");
   return user;
 }

@@ -1,7 +1,7 @@
 -- Stage 1 only. Self-contained fixtures, always rolled back.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(72);
+select plan(78);
 insert into public.colleges(code,name) values('MVP-TEST','MVP Test College');
 insert into public.programs(college_id,name) select id,'MVP Test Program' from public.colleges where code = 'MVP-TEST';
 insert into public.event_categories(name,slug) values('MVP Test Category','mvp-test');
@@ -12,26 +12,39 @@ update public.profiles set is_admin = true where id in ('b1000000-0000-4000-8000
 update public.profiles set organizer_status = 'active',organizer_since = now() where id = 'b1000000-0000-4000-8000-000000000004';
 insert into storage.objects(bucket_id,name,owner_id) values('organizer-requirements','b1000000-0000-4000-8000-000000000001/proof.pdf','b1000000-0000-4000-8000-000000000001');
 insert into public.organizer_applications(id,applicant_id,organization_name,position_title,contact_number,reason,proof_document_path,privacy_notice_version) values('ba000000-0000-4000-8000-000000000003','b1000000-0000-4000-8000-000000000003','MVP Admin Council','President','09123456789',repeat('reason ',10),'admin/proof.pdf','2026-10-draft');
+-- Historical application fixture; no submission RPC is used.
+insert into public.organizer_applications(id,applicant_id,organization_name,position_title,contact_number,reason,proof_document_path,privacy_notice_version)
+values('ba000000-0000-4000-8000-000000000001','b1000000-0000-4000-8000-000000000001','MVP Council','President','09123456789',repeat('reason ',10),'b1000000-0000-4000-8000-000000000001/proof.pdf','2026-10-draft');
 select set_config('request.jwt.claims','{"sub":"b1000000-0000-4000-8000-000000000001","role":"authenticated","is_anonymous":false}',true);
 set local role authenticated;
-select is(public.submit_organizer_application(jsonb_build_object('organization_name','MVP Council','position_title','President','contact_number','09123456789','reason',repeat('reason ',10),'proof_document_path','b1000000-0000-4000-8000-000000000001/proof.pdf','privacy_notice_version','2026-10-draft','consent',false))->>'code','consent_required','application requires consent');
-select is(public.submit_organizer_application(jsonb_build_object('organization_name','MVP Council','position_title','President','contact_number','09123456789','reason',repeat('reason ',10),'proof_document_path','someone-else/proof.pdf','privacy_notice_version','2026-10-draft','consent',true))->>'code','invalid_document','foreign proof cannot be submitted');
-select is(public.submit_organizer_application(jsonb_build_object('organization_name','MVP Council','position_title','President','contact_number','09123456789','reason',repeat('reason ',10),'proof_document_path','b1000000-0000-4000-8000-000000000001/proof.pdf','privacy_notice_version','2026-10-draft','consent',true))->>'code','ok','complete participant can apply');
-select is(public.submit_organizer_application('{"privacy_notice_version":"2026-10-draft","consent":true}')->>'code','already_pending','second pending application refused');
+select is(public.submit_organizer_application(jsonb_build_object('organization_name','MVP Council','position_title','President','contact_number','09123456789','reason',repeat('reason ',10),'proof_document_path','b1000000-0000-4000-8000-000000000001/proof.pdf','privacy_notice_version','2026-10-draft','consent',false))->>'code','workflow_retired','application submissions are closed even without consent');
+select is(public.submit_organizer_application(jsonb_build_object('organization_name','MVP Council','position_title','President','contact_number','09123456789','reason',repeat('reason ',10),'proof_document_path','someone-else/proof.pdf','privacy_notice_version','2026-10-draft','consent',true))->>'code','workflow_retired','foreign proof cannot bypass retirement');
+select is(public.submit_organizer_application(jsonb_build_object('organization_name','MVP Council','position_title','President','contact_number','09123456789','reason',repeat('reason ',10),'proof_document_path','b1000000-0000-4000-8000-000000000001/proof.pdf','privacy_notice_version','2026-10-draft','consent',true))->>'code','workflow_retired','complete participant cannot apply');
+select is(public.submit_organizer_application('{"privacy_notice_version":"2026-10-draft","consent":true}')->>'code','workflow_retired','repeated submission remains closed');
 select is((select count(*)::int from public.organizer_applications),1,'applicant sees only own application');
-select is(public.review_organizer_application('ba000000-0000-4000-8000-000000000003','approved'), 'not_permitted','participant cannot review');
+select is(public.withdraw_organizer_application('ba000000-0000-4000-8000-000000000001'),'workflow_retired','historical withdrawal is closed');
+select is((select status::text from public.organizer_applications where id = 'ba000000-0000-4000-8000-000000000001'),'pending','historical application status is unchanged');
+select throws_ok($$ insert into public.organizer_applications default values $$,'42501',null,'direct submission is forbidden');
+select throws_ok($$ update public.organizer_applications set status = 'approved' where applicant_id = auth.uid() $$,'42501',null,'direct application approval is forbidden');
+select throws_ok($$ insert into storage.objects(bucket_id,name,owner_id) values('organizer-requirements','b1000000-0000-4000-8000-000000000001/new-proof.pdf','b1000000-0000-4000-8000-000000000001') $$,'42501',null,'new proof uploads are forbidden');
+select is(public.review_organizer_application('ba000000-0000-4000-8000-000000000003','approved'), 'workflow_retired','participant cannot review');
 select throws_ok($$ update public.profiles set organizer_status = 'active' where id = auth.uid() $$,'42501',null,'organizer role not directly writable');
 select throws_ok($$ update public.profiles set is_admin = true where id = auth.uid() $$,'42501',null,'admin role not directly writable');
 select is(public.save_event(null,'{"title":"Unauthorized event"}')->>'code','not_permitted','participant cannot create event');
 select set_config('request.jwt.claims','{"sub":"b1000000-0000-4000-8000-000000000003","role":"authenticated","is_anonymous":false}',true);
-select is(public.review_organizer_application('ba000000-0000-4000-8000-000000000003','approved'),'self_review','admin cannot approve own application');
+select is(public.review_organizer_application('ba000000-0000-4000-8000-000000000003','approved'),'workflow_retired','admin cannot approve own historical application');
 select set_config('request.jwt.claims','{"sub":"b1000000-0000-4000-8000-000000000002","role":"authenticated","is_anonymous":false}',true);
-select is(public.review_organizer_application((select id from public.organizer_applications where applicant_id = 'b1000000-0000-4000-8000-000000000001'),'rejected',''),'reason_required','rejection requires reason');
-select is(public.review_organizer_application((select id from public.organizer_applications where applicant_id = 'b1000000-0000-4000-8000-000000000001'),'approved'),'ok','admin approves organizer');
-select is((select organizer_status::text from public.profiles where id = 'b1000000-0000-4000-8000-000000000001'),'active','approval activates organizer atomically');
-select is(public.review_organizer_application((select id from public.organizer_applications where applicant_id = 'b1000000-0000-4000-8000-000000000001'),'approved'),'already_reviewed','double review refused');
-select is((select count(*)::int from public.audit_logs where action = 'organizer.approved' and actor_id = auth.uid()),1,'approval audit records admin');
+select is(public.review_organizer_application((select id from public.organizer_applications where applicant_id = 'b1000000-0000-4000-8000-000000000001'),'rejected',''),'workflow_retired','historical rejection is closed');
+select is(public.review_organizer_application((select id from public.organizer_applications where applicant_id = 'b1000000-0000-4000-8000-000000000001'),'approved'),'workflow_retired','admin cannot grant access through historical approval');
+select is((select organizer_status::text from public.profiles where id = 'b1000000-0000-4000-8000-000000000001'),'none','retired approval leaves participant privileges unchanged');
+select is(public.review_organizer_application((select id from public.organizer_applications where applicant_id = 'b1000000-0000-4000-8000-000000000001'),'approved'),'workflow_retired','repeated review remains closed');
+select is((select count(*)::int from public.audit_logs where action = 'organizer.approved' and actor_id = auth.uid()),0,'retired approval creates no misleading audit entry');
+select is(public.set_organizer_status('b1000000-0000-4000-8000-000000000001','active','Attempt promotion'),'invalid_status','status management cannot substitute for a promotion workflow');
 select set_config('request.jwt.claims','{"sub":"b1000000-0000-4000-8000-000000000001","role":"authenticated","is_anonymous":false}',true);
+-- Isolated event-management fixture; not a live grant or application approval.
+reset role;
+update public.profiles set organizer_status = 'active',organizer_since = now() where id = 'b1000000-0000-4000-8000-000000000001';
+set local role authenticated;
 select is(public.save_event(null,'{"title":"MVP Minimal Draft"}')->>'code','ok','organizer creates minimal draft');
 select is(public.publish_event((select id from public.events where title = 'MVP Minimal Draft')),'incomplete_event','cannot publish incomplete draft');
 select throws_ok($$ update public.events set status = 'published' where title = 'MVP Minimal Draft' $$,'42501',null,'event state cannot be written directly');
@@ -91,7 +104,7 @@ select set_config('request.jwt.claims','{"sub":"b1000000-0000-4000-8000-00000000
 select is((select count(*)::int from public.event_registrations where event_id = 'be000000-0000-4000-8000-000000000001'),1,'cancelled event keeps registrations');
 select is(public.save_event('be000000-0000-4000-8000-000000000001','{"title":"Terminal edit"}')->>'code','terminal_event','terminal event cannot be edited');
 select set_config('request.jwt.claims','{"sub":"b1000000-0000-4000-8000-000000000002","role":"authenticated","is_anonymous":true}',true);
-select is(public.review_organizer_application('ba000000-0000-4000-8000-000000000003','approved'),'not_permitted','anonymous admin subject denied');
+select is(public.review_organizer_application('ba000000-0000-4000-8000-000000000003','approved'),'workflow_retired','anonymous admin subject cannot use retired review');
 select is(public.register_for_event('be000000-0000-4000-8000-000000000002'),'not_permitted','anonymous registration denied');
 select is((select count(*)::int from public.events),0,'anonymous event read denied');
 reset role;

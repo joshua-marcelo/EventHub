@@ -705,6 +705,78 @@ export type Database = {
           },
         ]
       }
+      organizer_invitations: {
+        Row: {
+          acceptance_attempt: string | null
+          acceptance_hash: string | null
+          accepted_at: string | null
+          attempt_id: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          first_name: string
+          id: string
+          invited_by: string
+          last_attempt_at: string | null
+          last_name: string
+          provider_accepted_at: string | null
+          state: string
+          user_id: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          acceptance_attempt?: string | null
+          acceptance_hash?: string | null
+          accepted_at?: string | null
+          attempt_id?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          first_name: string
+          id?: string
+          invited_by: string
+          last_attempt_at?: string | null
+          last_name: string
+          provider_accepted_at?: string | null
+          state?: string
+          user_id?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          acceptance_attempt?: string | null
+          acceptance_hash?: string | null
+          accepted_at?: string | null
+          attempt_id?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          first_name?: string
+          id?: string
+          invited_by?: string
+          last_attempt_at?: string | null
+          last_name?: string
+          provider_accepted_at?: string | null
+          state?: string
+          user_id?: string | null
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organizer_invitations_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organizer_invitations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_path: string | null
@@ -836,16 +908,29 @@ export type Database = {
     }
     Functions: {
       accept_privacy_notice: { Args: { p_version: string }; Returns: string }
+      acquire_organizer_invitation: { Args: { p_id: string }; Returns: Json }
+      begin_organizer_acceptance: {
+        Args: { p_email: string; p_hash: string; p_user_id: string }
+        Returns: string
+      }
       cancel_event: {
         Args: { p_id: string; p_reason: string }
         Returns: string
       }
       cancel_registration: { Args: { p_event_id: string }; Returns: string }
+      check_organizer_acceptance: {
+        Args: { p_hash: string; p_user_id: string }
+        Returns: string
+      }
       close_attendance_session: {
         Args: { p_event_id: string }
         Returns: string
       }
       complete_event: { Args: { p_event_id: string }; Returns: string }
+      complete_organizer_acceptance: {
+        Args: { p_hash: string; p_user_id: string }
+        Returns: string
+      }
       correct_attendance: {
         Args: { p_action: string; p_reason: string; p_registration_id: string }
         Returns: string
@@ -869,6 +954,15 @@ export type Database = {
           time_out_at: string
           year_level: number
         }[]
+      }
+      finish_organizer_invitation: {
+        Args: {
+          p_actor_id: string
+          p_attempt_id: string
+          p_id: string
+          p_sent: boolean
+        }
+        Returns: string
       }
       get_attendance_feed: { Args: { p_event_id: string }; Returns: Json }
       get_attendance_qr: { Args: { p_event_id: string }; Returns: Json }
@@ -914,8 +1008,16 @@ export type Database = {
         Args: { p: Database["public"]["Tables"]["profiles"]["Row"] }
         Returns: string
       }
+      promote_participant_to_organizer: {
+        Args: { p_user_id: string }
+        Returns: string
+      }
       publish_event: { Args: { p_id: string }; Returns: string }
       register_for_event: { Args: { p_event_id: string }; Returns: string }
+      reserve_organizer_invitation: {
+        Args: { p_email: string; p_first_name: string; p_last_name: string }
+        Returns: Json
+      }
       review_organizer_application: {
         Args: { p_decision: string; p_id: string; p_reason?: string }
         Returns: string

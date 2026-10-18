@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireOrganizer, requireUser } from "@/lib/auth/dal";
+import { canUseOrganizerTools } from "@/lib/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { type ActionResult, fieldErrorsFrom } from "@/lib/action-result";
-import { applicationSchema, eventSchema, idSchema, reasonSchema } from "@/lib/validation/mvp";
-import { PRIVACY_NOTICE_VERSION } from "@/lib/privacy";
+import { eventSchema, idSchema, reasonSchema } from "@/lib/validation/mvp";
+import { BANNER_BUCKET, BANNER_MAX_BYTES, bannerTypeFromPath, detectImageType, isBannerPath } from "@/lib/mvp/banner";
 
 const messages: Record<string, string> = {
   not_permitted: "You do not have permission for this action.", not_eligible: "A complete profile and eligible organizer status are required.",
@@ -16,7 +17,8 @@ const messages: Record<string, string> = {
   not_found: "This item is unavailable.", incomplete_event: "Complete the description, category, venue, future start, and registration dates before publishing.",
   inactive_lookup: "Choose active category and college entries.", event_full: "This event has reached capacity.",
   registration_closed: "Registration is closed.", profile_incomplete: "Complete your profile first.", own_event: "You cannot register for your own event.",
-  capacity_too_small: "Capacity cannot be lower than approved registrations.", terminal_event: "Cancelled and completed events cannot be edited.",
+  invalid_path: "The uploaded banner could not be found. Upload it again.",
+  capacity_too_small:"Capacity cannot be lower than approved registrations.", terminal_event: "Cancelled and completed events cannot be edited.",
   invalid_status: "This action is unavailable for the current status.", reason_required: "Enter a reason.", rejected: "Your registration was rejected. Contact the organizer.",
 };
 function result(code: string | null, error: unknown): ActionResult {
@@ -27,43 +29,61 @@ function result(code: string | null, error: unknown): ActionResult {
 function refresh() {
   revalidatePath("/", "layout");
 }
-export async function savePoster(id:string,path:string):Promise<ActionResult> {
-  if(!idSchema.safeParse(id).success || !path.startsWith(`${id}/`) || path.length > 250) return result("invalid_input",null);
+/**
+ * Attaches an already-uploaded banner (or removes it with `null`). Storage RLS limits uploads to the
+ * active owner's own event folder; this re-checks ownership, verifies the stored bytes are really a
+ * JPG/PNG/WEBP (Content-Type is client-controlled), and cleans up the replaced or rejected object.
+ */
+export async function setEventBanner(id: string, path: string | null): Promise<ActionResult> {
+  if (!idSchema.safeParse(id).success || (path !== null && (typeof path !== "string" || !isBannerPath(id, path)))) return result("invalid_input", null);
   const user = await requireOrganizer(); const client = await createClient();
-  const {data:event} = await client.from("events").select("organizer_id").eq("id",id).maybeSingle();
-  if(event?.organizer_id !== user.id) return result("not_permitted",null);
-  const {data,error} = await client.rpc("set_event_banner",{p_event_id:id,p_path:path});
-  const r = result(data,error); if(r.ok) refresh(); return r;
+  const { data: event } = await client.from("events").select("organizer_id,banner_path").eq("id", id).maybeSingle();
+  if (!event || event.organizer_id !== user.id) return result("not_permitted", null);
+  const storage = client.storage.from(BANNER_BUCKET);
+  if (path !== null) {
+    const { data: file, error } = await storage.download(path);
+    const head = file ? new Uint8Array(await file.slice(0, 16).arrayBuffer()) : null;
+    if (error || !file || !head || file.size > BANNER_MAX_BYTES || detectImageType(head) !== bannerTypeFromPath(path)) {
+      await storage.remove([path]);
+      return { ok: false, code: "invalid_image", error: "The banner must be a valid JPG, PNG or WEBP image up to 5 MB." };
+    }
+  }
+  // set_event_banner accepts NULL to clear the banner; the generated type omits nullability.
+  const { data, error } = await client.rpc("set_event_banner", { p_event_id: id, p_path: path as string });
+  const r = result(data, error);
+  if (!r.ok) { if (path) await storage.remove([path]); return r; }
+  // Best effort: a failed cleanup leaves an unreferenced object but never a broken event.
+  if (event.banner_path && event.banner_path !== path) await storage.remove([event.banner_path]);
+  refresh();
+  return { ok: true, message: path ? "Banner saved." : "Banner removed." };
 }
 
 export async function submitApplication(input: unknown): Promise<ActionResult> {
-  const v = applicationSchema.safeParse(input);
-  if (!v.success) return { ok: false, error: "Check application fields and privacy consent.", fieldErrors: fieldErrorsFrom(v.error.issues) };
-  const user = await requireUser({ next: "/become-organizer" });
-  if (!["none", "revoked"].includes(user.organizerStatus)) return result("not_eligible", null);
-  const { data, error } = await (await createClient()).rpc("submit_organizer_application", { p_values: { ...v.data, privacy_notice_version: PRIVACY_NOTICE_VERSION } });
-  const code = data && typeof data === "object" && !Array.isArray(data) ? String(data.code) : null;
-  const r = result(code, error); if (r.ok) refresh(); return r;
+  void input;
+  return retiredApplication();
 }
 export async function withdrawApplication(id: string): Promise<ActionResult> {
-  if (!idSchema.safeParse(id).success) return result("invalid_input", null);
-  await requireUser();
-  const { data, error } = await (await createClient()).rpc("withdraw_organizer_application", { p_id: id });
-  const r = result(data, error); if (r.ok) refresh(); return r;
+  void id;
+  return retiredApplication();
 }
 export async function reviewApplication(id: string, decision: "approved" | "rejected", reason: string): Promise<ActionResult> {
-  if (!idSchema.safeParse(id).success || !["approved", "rejected"].includes(decision) || reason.length > 1000 || (decision === "rejected" && !reasonSchema.safeParse(reason).success)) return result("reason_required", null);
-  await requireAdmin();
-  const { data, error } = await (await createClient()).rpc("review_organizer_application", { p_id: id, p_decision: decision, p_reason: reason });
-  const r = result(data, error); if (r.ok) refresh(); return r;
+  void id; void decision; void reason;
+  return retiredApplication();
+}
+// Keep stale callers fail-closed, without querying or changing historical records or roles.
+function retiredApplication(): ActionResult {
+  return { ok: false, code: "workflow_retired", error: "Organizer applications are closed. Organizer access is managed by an administrator." };
 }
 export async function changeOrganizerStatus(id: string, status: "active" | "suspended" | "revoked", reason: string): Promise<ActionResult> {
   if (!idSchema.safeParse(id).success || !["active", "suspended", "revoked"].includes(status) || !reasonSchema.safeParse(reason).success) return result("reason_required", null);
-  await requireAdmin();
+  const admin = await requireAdmin();
+  // An admin cannot suspend or revoke their own organizer access from the management screens.
+  if (admin.id === id) return result("not_permitted", null);
   const { data, error } = await (await createClient()).rpc("set_organizer_status", { p_user_id: id, p_status: status, p_reason: reason });
   const r = result(data, error); if (r.ok) refresh(); return r;
 }
-export async function saveEvent(id: string | null, input: unknown): Promise<ActionResult> {
+/** Saves the event fields and returns its ID; the form then attaches any banner and navigates. */
+export async function saveEvent(id: string | null, input: unknown): Promise<ActionResult & { id?: string }> {
   const v = eventSchema.safeParse(input);
   if (!v.success) return { ok: false, error: "Check the event fields.", fieldErrors: fieldErrorsFrom(v.error.issues) };
   if (id !== null && !idSchema.safeParse(id).success) return result("invalid_input", null);
@@ -77,14 +97,14 @@ export async function saveEvent(id: string | null, input: unknown): Promise<Acti
   const payload = data && typeof data === "object" && !Array.isArray(data) ? data : null;
   const r = result(payload ? String(payload.code) : null, error);
   if (!r.ok) return r;
-  refresh(); redirect(`/organizer/events/${payload!.id}`);
+  refresh(); return { ok: true, message: "Event saved.", id: String(payload!.id) };
 }
 export async function eventAction(id: string, action: "publish" | "delete" | "cancel", reason = ""): Promise<ActionResult> {
   if (!idSchema.safeParse(id).success || !["publish", "delete", "cancel"].includes(action)) return result("invalid_input", null);
-  const user = await requireUser({ allowIncomplete: action === "cancel" });
+  const user = action === "cancel" ? await requireUser({ allowIncomplete: true }) : await requireOrganizer();
   const client = await createClient();
   const { data: event } = await client.from("events").select("organizer_id").eq("id", id).maybeSingle();
-  if (!event || !(event.organizer_id === user.id && user.organizerStatus === "active" || action === "cancel" && user.isAdmin)) return result("not_permitted", null);
+  if (!event || !(event.organizer_id === user.id && canUseOrganizerTools(user) || action === "cancel" && user.isAdmin)) return result("not_permitted", null);
   if (action === "cancel" && !reasonSchema.safeParse(reason).success) return result("reason_required", null);
   const response = action === "publish" ? await client.rpc("publish_event", { p_id: id }) : action === "delete" ? await client.rpc("delete_event_draft", { p_id: id }) : await client.rpc("cancel_event", { p_id: id, p_reason: reason });
   const r = result(response.data, response.error);

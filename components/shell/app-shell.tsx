@@ -2,29 +2,32 @@
 
 import { useState, type ReactNode, type ReactElement } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { ArrowLeftRightIcon, AwardIcon, BadgeCheckIcon, CalendarDaysIcon, ClipboardListIcon, DatabaseIcon, HomeIcon, MenuIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, ScanLineIcon, UsersIcon, ChartNoAxesColumnIcon } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { AwardIcon, BadgeCheckIcon, CalendarDaysIcon, DatabaseIcon, HomeIcon, MenuIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, ScanLineIcon, UsersIcon, ChartNoAxesColumnIcon } from "lucide-react";
 import { AccountMenu } from "@/components/shell/account-menu";
+import { WorkspaceSwitcher } from "@/components/shell/workspace-switcher";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { dashboards, navigation, dashboardForPath, isActiveLink, isAttendanceDisplay, permittedDashboards, type Permissions } from "@/lib/navigation";
+import { dashboards, navigation, dashboardForPath, isActiveLink, isAttendanceDisplay, permittedDashboards, resolveWorkspaceContext, isSharedAccountPath, type Permissions } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-const icons = { home: HomeIcon, events: CalendarDaysIcon, certificates: AwardIcon, people: UsersIcon, reports: ChartNoAxesColumnIcon, applications: ClipboardListIcon, organizers: BadgeCheckIcon, reference: DatabaseIcon };
+const icons = { home: HomeIcon, events: CalendarDaysIcon, certificates: AwardIcon, people: UsersIcon, reports: ChartNoAxesColumnIcon, organizers: BadgeCheckIcon, reference: DatabaseIcon };
 export type ShellUser = Permissions & { name: string; email: string };
 
 export function AppShell({ user, children }: { user: ShellUser | null; children: ReactNode }) {
   const path = usePathname();
+  const params = useSearchParams();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const current = dashboardForPath(path);
+  const contexts = params.getAll("workspace");
+  const current = user && isSharedAccountPath(path)
+    ? resolveWorkspaceContext(user, contexts.length === 1 ? contexts[0] : undefined)
+    : dashboardForPath(path);
   const permitted = user ? permittedDashboards(user) : [];
   if (isAttendanceDisplay(path)) return <main id="main-content" className="min-h-svh">{children}</main>;
 
-  // One concrete link per other dashboard this account may open; switching never changes roles.
-  const destinations = permitted.filter(key => key !== current);
   const nav = (compact = false) => <div className="flex min-h-full flex-col">
     <p className={cn("mb-3 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground", compact && "sr-only")}>{dashboards[current].label} workspace</p>
     <nav aria-label={`${dashboards[current].label} navigation`} className="space-y-1">
@@ -34,12 +37,7 @@ export function AppShell({ user, children }: { user: ShellUser | null; children:
         return <SidebarTooltip key={item.href} label={item.label} enabled={compact}><Link href={item.href} onClick={() => setOpen(false)} aria-current={active ? "page" : undefined} className={cn("flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-ring", compact && "min-h-11 justify-center px-0", active ? "bg-background font-medium text-foreground shadow-xs ring-1 ring-border" : "text-muted-foreground hover:bg-accent hover:text-foreground")}><Icon className={cn("size-4 shrink-0", active && "text-orange-800")} aria-hidden="true" /><span className={compact ? "sr-only" : "whitespace-nowrap"}>{item.label}</span></Link></SidebarTooltip>;
       })}
     </nav>
-    {destinations.length > 0 && <nav aria-label="Other dashboards" className="mt-auto space-y-2 border-t pt-4">
-      {destinations.map(key => <SidebarTooltip key={key} label={dashboards[key].destination} enabled={compact}><Link href={dashboards[key].href} onClick={() => setOpen(false)} className={cn("flex items-center gap-3 rounded-lg border bg-background px-3 py-2.5 transition-colors hover:border-slate-300 hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring", compact && "min-h-11 justify-center px-0")}>
-        <ArrowLeftRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <span className={compact ? "sr-only" : "min-w-0 whitespace-nowrap"}><span className="block text-sm font-medium">{dashboards[key].destination}</span><span className="block text-xs text-muted-foreground">{dashboards[key].description}</span></span>
-      </Link></SidebarTooltip>)}
-    </nav>}
+    {permitted.length > 1 && <div className="mt-auto border-t pt-4"><WorkspaceSwitcher current={current} permitted={permitted} compact={compact} onSelect={() => setOpen(false)} /></div>}
   </div>;
   return <div className={cn("min-h-svh", user && current === "participant" && "bg-[#FAF9F6]")}>
     <a href="#main-content" className="sr-only z-50 rounded bg-background p-3 focus:not-sr-only focus:fixed focus:left-4 focus:top-2">Skip to content</a>
@@ -49,7 +47,7 @@ export function AppShell({ user, children }: { user: ShellUser | null; children:
           <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden" aria-label="Open menu" />}><MenuIcon /></SheetTrigger>
           <SheetContent side="left" className="w-72"><SheetHeader><SheetTitle>EventHub</SheetTitle><SheetDescription>Your campus. Your events.</SheetDescription></SheetHeader><div className="flex flex-1 flex-col overflow-y-auto px-4 pb-6">{nav()}</div></SheetContent>
         </Sheet>}
-        <Link href={user && current === "admin" ? "/admin" : "/dashboard"} aria-label="EventHub home" className="shrink-0"><BrandLogo className="w-28" sizes="118px" /></Link>
+        <Link href={user ? dashboards[current].href : "/dashboard"} aria-label="EventHub home" className="shrink-0"><BrandLogo className="w-28" sizes="118px" /></Link>
         {user && <Button type="button" variant="ghost" size="icon" className="hidden size-9 shrink-0 md:inline-flex" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!collapsed} aria-controls="desktop-sidebar" onClick={() => setCollapsed(value => !value)}>
           {collapsed ? <PanelLeftOpenIcon aria-hidden="true" /> : <PanelLeftCloseIcon aria-hidden="true" />}
         </Button>}
