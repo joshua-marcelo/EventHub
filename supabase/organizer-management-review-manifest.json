@@ -1,0 +1,60 @@
+{
+  "migrations": [
+    {
+      "file": "20261016012245_retire_organizer_applications.sql",
+      "version": "20261016012245",
+      "sha256": "2c5ff8a3f43a27e869f70d3af36ac7523af7e6ff145fb751f469216f485bf667"
+    },
+    {
+      "file": "20261016012340_admin_organizer_management.sql",
+      "version": "20261016012340",
+      "sha256": "7c28ea83bf1c6687785847f47d21a33bfd29b35c044c1231cffe06f647532ddc"
+    }
+  ],
+  "expectedFunctions": [
+    {
+      "signature": "public.submit_organizer_application(jsonb)",
+      "bodyMd5": "f17f209d917ddabb5eb914b4d4f1132b"
+    },
+    {
+      "signature": "public.withdraw_organizer_application(uuid)",
+      "bodyMd5": "2ca9fe85b8632a0b56d02ce1782cb374"
+    },
+    {
+      "signature": "public.review_organizer_application(uuid,text,text)",
+      "bodyMd5": "2ca9fe85b8632a0b56d02ce1782cb374"
+    },
+    {
+      "signature": "public.reserve_organizer_invitation(text,text,text)",
+      "bodyMd5": "ba6cbb870846313af3904a6b703b8c18"
+    },
+    {
+      "signature": "public.acquire_organizer_invitation(uuid)",
+      "bodyMd5": "69cf7ab08502fa8393be1f30887f0a55"
+    },
+    {
+      "signature": "public.finish_organizer_invitation(uuid,uuid,uuid,boolean)",
+      "bodyMd5": "fba61706ebdf246e6da469f0f032b90f"
+    },
+    {
+      "signature": "public.promote_participant_to_organizer(uuid)",
+      "bodyMd5": "6f33a139c1e833c2f3d9b549ee71406a"
+    },
+    {
+      "signature": "public.begin_organizer_acceptance(uuid,text,text)",
+      "bodyMd5": "e89b8c04ddcfa5a16a4d11627fd4f8b1"
+    },
+    {
+      "signature": "public.check_organizer_acceptance(uuid,text)",
+      "bodyMd5": "319d98599d9ab2bb059b3dfc0016a3c0"
+    },
+    {
+      "signature": "public.complete_organizer_acceptance(uuid,text)",
+      "bodyMd5": "3566cfa9635e7478e4544f1e1104e503"
+    },
+    {
+      "signature": "public.save_event(uuid,jsonb)",
+      "bodyMd5": "4d8ce73c4ff1e2582316c3fcffc720ca"
+    }
+  ]
+}

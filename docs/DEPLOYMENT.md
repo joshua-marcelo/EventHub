@@ -12,11 +12,11 @@ This guide prepares a **separate production Supabase project** and a **Vercel** 
 ## 1. Create the production Supabase project
 
 1. In the Supabase dashboard, create a new project in the client's organization. Choose a nearby region (for example Singapore) and store the database password in the team's password manager.
-2. Note the **Project URL** and the **publishable key** (Project Settings → API Keys). The app needs no secret or service-role key; do not create environment variables for one.
+2. Note the **Project URL** and the **publishable key** (Project Settings → API Keys). Admin invitations additionally require `SUPABASE_SECRET_KEY` in the server environment only (a Supabase secret key or legacy service-role key). Never prefix it with `NEXT_PUBLIC_` or expose it to browser components. See [Organizer management setup](./ORGANIZER_MANAGEMENT_IMPLEMENTATION.md) before enabling this feature.
 
 ## 2. Apply the database migrations
 
-The 15 migrations in `supabase/migrations/` are the complete schema, RLS, RPCs, Storage buckets and policies, and the `pg_cron` device-evidence retention job. Local filenames match the development history exactly (reconciled 2026-10-12), so a fresh project replays them in the same order.
+The reviewed migrations in `supabase/migrations/` define the schema, RLS, RPCs, Storage buckets and policies, and retention jobs. New Organizer migrations are prepared locally and require separate approval; see the Organizer management report before applying them.
 
 ```bash
 npx supabase login                                  # opens the browser
@@ -27,7 +27,7 @@ npx supabase db push
 
 Afterwards, in the production dashboard:
 
-- **Database → Migrations** lists 15 versions, `20261009202616` through `20261011134144`.
+- **Database → Migrations** lists the approved versions in filename order. Organizer retirement/management adds `20261016012245` and `20261016012340` only after separate approval.
 - **Storage** shows `avatars` (private, 2 MB, JPEG/PNG/WebP), `organizer-requirements` (private) and `event-banners` (public).
 - **Advisors → Security** reports only the expected items: SECURITY DEFINER RPCs that check the caller themselves, two deny-all secret tables (`attendance_session_secrets`, `attendance_device_signals`), and dashboard-only Auth settings.
 
@@ -54,6 +54,7 @@ Do not run `supabase/seed.sql` or anything in `supabase/tests/` against producti
 **Authentication → Emails → Templates**
 - **Confirm signup**: subject `Confirm your EventHub account`; body = full contents of `supabase/templates/confirmation.html`.
 - **Reset password**: subject `Reset your EventHub password`; body = full contents of `supabase/templates/recovery.html`.
+- **Invite user**: subject `You're invited to EventHub as an Organizer`; body = full contents of `supabase/templates/invite.html`. This template is required for the explicit-submit invitation flow; do not use the default invite template.
 
 The templates use `{{ .SiteURL }}`, `{{ .TokenHash }}` and `{{ .RedirectTo }}`. The reset link carries its token in the URL fragment (`#token_hash=…`), and the token is verified only when the new password is submitted. Email scanners that open links therefore cannot spend it, and it works on any device. With the **default** Supabase template, a reset link works only in the browser that requested it (PKCE); the app now says so instead of calling the link expired.
 
@@ -74,6 +75,7 @@ Verify by signing up with a real mailbox you control and by requesting a passwor
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://<production-ref>.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | production publishable key (`sb_publishable_…`) |
 | `NEXT_PUBLIC_APP_URL` | `https://<your-domain>` (no trailing slash) |
+| `SUPABASE_SECRET_KEY` | server-only Supabase secret key (or legacy service-role key), never a public variable |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | optional; only with CAPTCHA enabled in Supabase |
 
 All four are public by design. **Do not** add `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`: no code reads them, and the app enforces permissions through the signed-in user, RLS and caller-checked RPCs. Preview deployments must not use production values; point them at development or disable them.
@@ -124,7 +126,7 @@ Use real accounts you control; delete or anonymize them afterwards (spec §21.2)
 3. Complete the student profile with a photo → dashboard loads.
 4. Log out, log in, reload: the session persists. Visiting `/admin` as a participant returns 404.
 5. **Forgot password** → branded **Reset your EventHub password** email → open the link on a *different* device → form appears → save → sign in with the new password. Reopening the same link shows **Request a new link**.
-6. Admin: approve an organizer application with proof upload; the applicant sees the Organizer dashboard.
+6. Only after explicit live-test approval: Admin invites an Organizer, who sets a password and opens the Organizer dashboard without Student Onboarding; Admin promotes an existing complete Participant without changing their identity or history. Applications must remain read-only.
 7. Organizer: create and publish an event; open the registration QR and link on a phone and register.
 8. Organizer: start attendance on a laptop; the participant scans the rotating QR with a **separate phone**; the check-in appears live; run time-out if the event uses it.
 9. Complete the event, generate certificates, download the PDF as the participant, and open the verification link on another device. Revoke it and confirm verification shows **Revoked**.

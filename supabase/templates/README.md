@@ -6,6 +6,7 @@ Branded templates for Supabase Auth: dark charcoal header, warm orange call to a
 |---|---|---|
 | Confirm signup | `Confirm your EventHub account` | `confirmation.html` |
 | Reset password | `Reset your EventHub password` | `recovery.html` |
+| Invite user | `You're invited to EventHub as an Organizer` | `invite.html` |
 
 `config.toml` records the same subjects and paths, but it only affects a local Supabase stack. **Hosted projects must be updated in the dashboard.**
 
@@ -23,6 +24,8 @@ Branded templates for Supabase Auth: dark charcoal header, warm orange call to a
 5. Verify: request a **new** email from `/forgot-password`. The link opens the form without spending the token; saving the new password spends it; reopening the link shows **Request a new link**. Then sign out and sign in with the new password. Never paste real links or tokens into logs, issues or Git.
 
 ## Link formats
+
+- Organizer invitation: `{{ .SiteURL }}/accept-invitation#token_hash={{ .TokenHash }}&type=invite`. The app verifies this token only on explicit password submission, then binds a protected retry proof to the verified identity. The invite template, correct Site URL, redirect allowlist and one-hour OTP expiry must be reviewed in the hosted dashboard before any approved live invitation test. A default-template session or an ordinary signed-in session is not accepted as invitation proof.
 
 - Confirmation: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next={{ .RedirectTo | urlquery }}`. It is verified server-side on open, then redirects to the sanitized `next` (off-site values are ignored).
 - Recovery: `{{ .SiteURL }}/reset-password#token_hash={{ .TokenHash }}&type=recovery`. The fragment never reaches the server on a GET or in a Referer, so link scanners cannot spend it, and it works on any device or browser.
