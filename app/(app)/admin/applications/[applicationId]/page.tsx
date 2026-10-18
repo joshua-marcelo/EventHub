@@ -4,22 +4,20 @@ import { notFound } from "next/navigation";
 import { ArrowLeftIcon, FileTextIcon } from "lucide-react";
 
 import { Panel, fullName } from "@/components/admin/admin-ui";
-import { ReviewAction } from "@/components/admin/review-action";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { requireAdmin } from "@/lib/auth/dal";
 import { formatDateTime } from "@/lib/datetime";
-import { reviewApplication } from "@/lib/mvp/actions";
 import { createClient } from "@/lib/supabase/server";
 import { idSchema } from "@/lib/validation/mvp";
 
-export const metadata = { title: "Application review" };
+export const metadata = { title: "Application history" };
 
 export default function Page({ params }: PageProps<"/admin/applications/[applicationId]">) { return <Suspense fallback={<PageSkeleton />}><Content params={params} /></Suspense>; }
 
 async function Content({ params }: Pick<PageProps<"/admin/applications/[applicationId]">, "params">) {
-  const user = await requireAdmin(); const { applicationId } = await params;
+  await requireAdmin(); const { applicationId } = await params;
   if (!idSchema.safeParse(applicationId).success) notFound();
   const client = await createClient();
   const { data: a, error } = await client.from("organizer_applications").select("*").eq("id", applicationId).maybeSingle();
@@ -30,7 +28,6 @@ async function Content({ params }: Pick<PageProps<"/admin/applications/[applicat
     if (error) throw new Error("Could not open document."); return data.signedUrl;
   }));
   const applicant = fullName(p);
-  const ownApplication = a.applicant_id === user.id;
   const facts: [string, string][] = [
     ["Applicant", applicant], ["Student ID", p?.student_id ?? "Not set"], ["Email", p?.email ?? "Not available"],
     ["Position", a.position_title], ["Contact number", a.contact_number], ["Submitted", formatDateTime(a.submitted_at)],
@@ -57,13 +54,7 @@ async function Content({ params }: Pick<PageProps<"/admin/applications/[applicat
         </Panel>
         <Panel title="Decision">
           <div className="space-y-3 p-4 text-sm">
-            {a.status === "pending" && !ownApplication ? <>
-              <p className="text-muted-foreground">Approving makes {applicant} an active organizer who can create and publish events.</p>
-              <div className="flex flex-wrap gap-2">
-                <ReviewAction label="Approve" title={`Approve ${a.organization_name}?`} description={`${applicant} will become an active organizer and can create and publish events.`} confirmLabel="Approve organizer" runAction={reviewApplication.bind(null, a.id, "approved")} />
-                <ReviewAction label="Reject" tone="destructive" reason="required" title="Reject this application?" description="Give the reason for rejecting this application." confirmLabel="Reject application" runAction={reviewApplication.bind(null, a.id, "rejected")} />
-              </div>
-            </> : a.status === "pending" ? <p className="text-muted-foreground">Another administrator must review your application.</p> : <>
+            {a.status === "pending" ? <p className="text-muted-foreground">This application remains pending as a historical record. The application workflow is closed; organizer access is managed in Organizers.</p> : <>
               {a.reviewed_at && <p className="text-muted-foreground">Reviewed {formatDateTime(a.reviewed_at)}</p>}
               {a.review_notes ? <p className="whitespace-pre-wrap">{a.review_notes}</p> : <p className="text-muted-foreground">No review notes.</p>}
             </>}

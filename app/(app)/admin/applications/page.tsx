@@ -13,23 +13,23 @@ import type { Database } from "@/lib/database.types";
 import { formatDate } from "@/lib/datetime";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata = { title: "Organizer applications" };
+export const metadata = { title: "Application history" };
 
 type Status = Database["public"]["Enums"]["application_status"];
 const filters: { value: Status | "all"; label: string }[] = [
   { value: "pending", label: "Pending" }, { value: "approved", label: "Approved" }, { value: "rejected", label: "Rejected" }, { value: "withdrawn", label: "Withdrawn" }, { value: "all", label: "All" },
 ];
 const emptyText: Record<Status | "all", [string, string]> = {
-  pending: ["No pending applications", "New organizer applications will appear here for review."],
+  pending: ["No pending applications", "Historical pending applications will be listed here."],
   approved: ["No approved applications", "Approved applications will be listed here."],
   rejected: ["No rejected applications", "Rejected applications will be listed here."],
   withdrawn: ["No withdrawn applications", "Applications withdrawn by applicants will be listed here."],
-  all: ["No applications yet", "Organizer applications submitted by participants will appear here."],
+  all: ["No application history", "The retired application workflow has no records to display."],
 };
 
 export default function Page({ searchParams }: PageProps<"/admin/applications">) {
   return <div className="space-y-6">
-    <PageHeader title="Organizer Applications" description="Review proof of authorization before approving. Pending applications are listed oldest first." />
+    <PageHeader title="Application History" description="Read-only records from the retired organizer application workflow. Organizer access is managed in Organizers." />
     <Suspense fallback={<PageSkeleton />}><Content searchParams={searchParams} /></Suspense>
   </div>;
 }
@@ -37,7 +37,7 @@ export default function Page({ searchParams }: PageProps<"/admin/applications">)
 async function Content({ searchParams }: Pick<PageProps<"/admin/applications">, "searchParams">) {
   await requireAdmin();
   const requested = (await searchParams).status;
-  const current = filters.find(f => f.value === requested)?.value ?? "pending";
+  const current = filters.find(f => f.value === requested)?.value ?? "all";
   const { data, error } = await (await createClient()).from("organizer_applications")
     .select("id,organization_name,position_title,status,submitted_at,applicant:profiles!organizer_applications_applicant_id_fkey(first_name,last_name,student_id)")
     .order("submitted_at").limit(200);
@@ -59,7 +59,7 @@ async function Content({ searchParams }: Pick<PageProps<"/admin/applications">, 
       { key: "position", label: "Position", className: "hidden lg:table-cell", render: a => a.position_title },
       { key: "submitted", label: "Submitted", className: "hidden sm:table-cell", render: a => <span className="whitespace-nowrap text-muted-foreground">{formatDate(a.submitted_at)}</span> },
       { key: "status", label: "Status", className: "hidden sm:table-cell", render: a => <StatusBadge status={a.status} /> },
-      { key: "action", label: "Action", className: "text-right", render: a => <Link href={`/admin/applications/${a.id}`} className={buttonVariants({ variant: a.status === "pending" ? "default" : "outline", size: "sm" })}>{a.status === "pending" ? "Review" : "View"}</Link> },
+      { key: "action", label: "Action", className: "text-right", render: a => <Link href={`/admin/applications/${a.id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>View</Link> },
     ]} />
   </div>;
 }
