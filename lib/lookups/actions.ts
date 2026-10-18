@@ -20,5 +20,6 @@ export async function saveLookup(input: unknown): Promise<ActionResult> {
   revalidatePath("/admin/lookups");
   revalidatePath("/onboarding");
   revalidatePath("/profile");
+  revalidatePath("/profile/student");
   return { ok: true, message: "Entry saved." };
 }
