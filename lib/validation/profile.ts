@@ -32,6 +32,14 @@ export const profileSchema = z.object({
     .max(6, "Select your year level."),
 });
 
+// Reuse the existing field rules without requiring student data for account edits.
+export const accountProfileSchema = profileSchema.pick({ firstName: true, middleName: true, lastName: true, suffix: true });
+export const studentDetailsSchema = profileSchema.pick({ studentId: true, collegeId: true, programId: true, yearLevel: true });
+export type AccountProfileInput = z.input<typeof accountProfileSchema>;
+export type AccountProfileValues = z.output<typeof accountProfileSchema>;
+export type StudentDetailsInput = z.input<typeof studentDetailsSchema>;
+export type StudentDetailsValues = z.output<typeof studentDetailsSchema>;
+
 export type ProfileFormInput = z.input<typeof profileSchema>;
 export type ProfileFormValues = z.output<typeof profileSchema>;
 

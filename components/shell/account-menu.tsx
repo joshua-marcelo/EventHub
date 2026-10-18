@@ -6,7 +6,7 @@ import { ChevronDownIcon, Loader2Icon, LogOutIcon, UserIcon } from "lucide-react
 import { useSignOut } from "@/components/auth/sign-out-buttons";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import type { Dashboard } from "@/lib/navigation";
+import { accountProfileHref, type Dashboard } from "@/lib/navigation";
 
 // Role shown for the workspace being viewed; access itself is always checked on the server.
 const roleLabels: Record<Dashboard, string> = { admin: "Administrator", organizer: "Organizer", participant: "Participant" };
@@ -39,7 +39,7 @@ export function AccountMenu({ name, email, dashboard }: { name: string; email: s
             <span className="mt-1 text-[11px] font-semibold uppercase tracking-[.12em] text-orange-800">{role}</span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem render={<Link href="/profile" />}>
+          <DropdownMenuItem render={<Link href={accountProfileHref(dashboard)} />}>
             <UserIcon aria-hidden="true" />My Profile
           </DropdownMenuItem>
         </DropdownMenuGroup>

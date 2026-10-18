@@ -9,6 +9,7 @@ function isNeverNext(path: string): boolean {
     p === "/signup" ||
     p.startsWith("/signup/") ||
     p === "/forgot-password" ||
+    p === "/accept-invitation" ||
     p.startsWith("/auth/")
   );
 }
@@ -66,6 +67,7 @@ const PUBLIC_EXACT = new Set([
   "/signup/check-email",
   "/forgot-password",
   "/reset-password",
+  "/accept-invitation",
   "/privacy",
   "/verify",
 ]);

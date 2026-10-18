@@ -39,7 +39,7 @@ describe("safeNextPath", () => {
   });
 
   it("never returns auth pages that would loop", () => {
-    for (const p of ["/login", "/login?next=/x", "/signup", "/signup/check-email", "/auth/confirm?token_hash=x", "/forgot-password"]) {
+    for (const p of ["/login", "/login?next=/x", "/signup", "/signup/check-email", "/auth/confirm?token_hash=x", "/forgot-password", "/accept-invitation#token_hash=fake"]) {
       expect(safeNextPath(p), p).toBe("/dashboard");
     }
   });
@@ -61,7 +61,7 @@ describe("isPublicPath", () => {
   });
 
   it("allows auth pages, privacy, verification and the event preview", () => {
-    for (const p of ["/", "/login", "/signup", "/signup/check-email", "/forgot-password", "/reset-password", "/privacy", "/auth/confirm", "/auth/error", "/verify", "/verify/abc", "/events/123e4567-e89b-42d3-a456-426614174000"]) {
+    for (const p of ["/", "/login", "/signup", "/signup/check-email", "/forgot-password", "/reset-password", "/accept-invitation", "/privacy", "/auth/confirm", "/auth/error", "/verify", "/verify/abc", "/events/123e4567-e89b-42d3-a456-426614174000"]) {
       expect(isPublicPath(p), p).toBe(true);
     }
   });
