@@ -53,7 +53,23 @@ export const resetPasswordSchema = z
     message: "Passwords do not match.",
   });
 
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Enter your current password.").max(72),
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Passwords do not match.",
+  })
+  .refine((v) => v.password !== v.currentPassword, {
+    path: ["password"],
+    message: "Choose a password different from your current one.",
+  });
+
 export type SignUpInput = z.input<typeof signUpSchema>;
 export type LoginInput = z.input<typeof loginSchema>;
 export type EmailOnlyInput = z.input<typeof emailOnlySchema>;
 export type ResetPasswordInput = z.input<typeof resetPasswordSchema>;
+export type ChangePasswordInput = z.input<typeof changePasswordSchema>;

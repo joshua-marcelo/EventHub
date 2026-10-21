@@ -6,10 +6,11 @@ import { requireAdmin, requireOrganizer, requireUser } from "@/lib/auth/dal";
 import { canUseOrganizerTools } from "@/lib/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { type ActionResult, fieldErrorsFrom } from "@/lib/action-result";
-import { eventSchema, idSchema, reasonSchema } from "@/lib/validation/mvp";
+import { eventSchema, idSchema, reasonSchema, withRegistrationDefaults } from "@/lib/validation/mvp";
 import { BANNER_BUCKET, BANNER_MAX_BYTES, bannerTypeFromPath, detectImageType, isBannerPath } from "@/lib/mvp/banner";
 
 const messages: Record<string, string> = {
+  attendance_started: "Attendance has started. Registration cannot be reopened.",
   not_permitted: "You do not have permission for this action.", not_eligible: "A complete profile and eligible organizer status are required.",
   already_pending: "You already have a pending application.", invalid_document: "Upload your proof document again.",
   consent_required: "Accept the privacy notice.", invalid_input: "Check the form values.", self_review: "Another administrator must review your application.",
@@ -93,9 +94,13 @@ export async function saveEvent(id: string | null, input: unknown): Promise<Acti
     const { data } = await client.from("events").select("organizer_id").eq("id", id).maybeSingle();
     if (data?.organizer_id !== user.id) return result("not_permitted", null);
   }
-  const { data, error } = await client.rpc("save_event", { p_id: id!, p_values: v.data });
+  const { data, error } = await client.rpc("save_event", { p_id: id!, p_values: withRegistrationDefaults(v.data) });
   const payload = data && typeof data === "object" && !Array.isArray(data) ? data : null;
   const r = result(payload ? String(payload.code) : null, error);
+  // Until migration 20261022100000 is applied the events table still requires 20 characters.
+  if (!r.ok && r.code === "invalid_input" && v.data.description && v.data.description.length < 20) {
+    return { ok: false, code: "description_too_short", error: "Short descriptions need a pending database update. Use at least 20 characters for now.", fieldErrors: { description: "Use at least 20 characters until the database update is applied." } };
+  }
   if (!r.ok) return r;
   refresh(); return { ok: true, message: "Event saved.", id: String(payload!.id) };
 }
@@ -116,6 +121,14 @@ export async function registrationAction(eventId: string, action: "register" | "
   const client = await createClient();
   const { data, error } = action === "register" ? await client.rpc("register_for_event", { p_event_id: eventId }) : await client.rpc("cancel_registration", { p_event_id: eventId });
   const r = result(data, error); if (r.ok) refresh(); return r;
+}
+export async function setEventRegistration(eventId: string, open: boolean): Promise<ActionResult> {
+  if (!idSchema.safeParse(eventId).success || typeof open !== "boolean") return result("invalid_input", null);
+  await requireOrganizer();
+  const { data, error } = await (await createClient()).rpc("set_event_registration", { p_event_id: eventId, p_open: open });
+  const out = result(data, error);
+  if (out.ok) refresh();
+  return out;
 }
 export async function decideRegistration(id: string, decision: "approved" | "rejected", reason: string): Promise<ActionResult> {
   if (!idSchema.safeParse(id).success || !["approved", "rejected"].includes(decision) || reason.length > 1000) return result("invalid_input", null);
