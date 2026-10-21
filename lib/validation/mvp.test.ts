@@ -15,3 +15,20 @@ describe("Organizer application", () => {
   it("requires consent and sufficient explanation", () => { expect(applicationSchema.safeParse(application).success).toBe(true); expect(applicationSchema.safeParse({...application,consent:false}).success).toBe(false); expect(applicationSchema.safeParse({...application,reason:"Too short"}).success).toBe(false); });
   it("rejects a non-Philippine mobile number", () => expect(applicationSchema.safeParse({...application,contact_number:"123456"}).success).toBe(false));
 });
+
+import { withRegistrationDefaults } from "./mvp";
+describe("simplified event form registration defaults", () => {
+  const now = Date.parse("2026-11-01T00:00:00Z");
+  const base = { starts_at: "2026-11-10T01:00:00.000Z", registration_opens_at: null, registration_closes_at: null };
+  it("opens registration now and closes it at the event start", () => {
+    expect(withRegistrationDefaults(base, now)).toMatchObject({ registration_opens_at: "2026-11-01T00:00:00.000Z", registration_closes_at: base.starts_at });
+  });
+  it("keeps explicit values", () => {
+    const set = { ...base, registration_opens_at: "2026-10-20T00:00:00.000Z", registration_closes_at: "2026-11-09T00:00:00.000Z" };
+    expect(withRegistrationDefaults(set, now)).toEqual(set);
+  });
+  it("leaves a draft without a date empty, and never opens after closing", () => {
+    expect(withRegistrationDefaults({ ...base, starts_at: null }, now)).toMatchObject({ registration_opens_at: null, registration_closes_at: null });
+    expect(withRegistrationDefaults({ ...base, starts_at: "2026-10-01T00:00:00.000Z" }, now).registration_opens_at).toBeNull();
+  });
+});

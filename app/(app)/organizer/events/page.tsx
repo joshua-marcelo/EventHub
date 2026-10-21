@@ -11,14 +11,14 @@ import { EventBanner } from "@/components/mvp/event-banner";
 import { buttonVariants } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/datetime";
 import { canUseOrganizerTools } from "@/lib/navigation";
-export const metadata = { title: "Events" };
+export const metadata = { title: "My Events" };
 export default function Page() { return <Suspense fallback={<PageSkeleton />}><Content /></Suspense>; }
 async function Content() {
   const user = await requireOrganizer({ allowInactive:true });
   const { data, error } = await (await createClient()).from("events").select("id,title,status,starts_at,venue,banner_path").eq("organizer_id",user.id).order("created_at",{ascending:false}).limit(100);
   if (error) throw new Error("Could not load events.");
   const create = canUseOrganizerTools(user) && <Link href="/organizer/events/new" className={buttonVariants()}>Create event</Link>;
-  return <div className="mx-auto w-full max-w-5xl space-y-6"><PageHeader title="Events" description="Events you organize. Open one to edit, publish or manage it." action={create} />
+  return <div className="mx-auto w-full max-w-5xl space-y-6"><PageHeader title="My Events" description="Events you organize. Open one to edit, publish or manage it." action={create} />
     {data.length ? <ul className="divide-y rounded-lg border">{data.map(e => <li key={e.id}>
       <Link href={`/organizer/events/${e.id}`} className="group flex items-center gap-4 p-3 transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring sm:p-4">
         <EventBanner path={e.banner_path} sizes="128px" className="w-24 shrink-0 rounded-md sm:w-32" />

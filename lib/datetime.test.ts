@@ -70,3 +70,13 @@ describe("formatters", () => {
     expect(() => formatDate("not a date")).toThrow(RangeError)
   })
 })
+
+import { formatEventSchedule } from "./datetime";
+describe("event schedule display", () => {
+  it("shows only the end time on the same Manila day, and the full end otherwise", () => {
+    expect(formatEventSchedule("2026-11-10T01:00:00Z", "2026-11-10T04:30:00Z")).toBe("Nov 10, 2026, 9:00 AM – 12:30 PM");
+    // 15:30Z is 11:30 PM Manila; 16:30Z is 12:30 AM the next Manila day.
+    expect(formatEventSchedule("2026-11-10T15:30:00Z", "2026-11-10T16:30:00Z")).toBe("Nov 10, 2026, 11:30 PM – Nov 11, 2026, 12:30 AM");
+    expect(formatEventSchedule("2026-11-10T01:00:00Z", null)).toBe("Nov 10, 2026, 9:00 AM");
+  });
+});

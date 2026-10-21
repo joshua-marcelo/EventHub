@@ -70,3 +70,10 @@ export function combineManilaDateTime(date: string, time: string): Date {
   }
   return new Date(result.getTime())
 }
+
+/** "Nov 10, 2026, 9:00 AM – 12:30 PM" on one day; the end's full date when it falls on another Manila day. */
+export function formatEventSchedule(start: DateInput, end?: DateInput | null): string {
+  if (!end) return formatDateTime(start)
+  const sameDay = formatInManila(start, "yyyy-MM-dd") === formatInManila(end, "yyyy-MM-dd")
+  return `${formatDateTime(start)} – ${sameDay ? formatTime(end) : formatDateTime(end)}`
+}
