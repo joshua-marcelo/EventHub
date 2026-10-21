@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { defaultDashboard } from "@/lib/navigation";
+import { homeFor } from "@/lib/navigation";
 import { LandingHeader } from "./landing-header";
 
 // Keep server auth actions out of the component rendering test.
@@ -36,7 +36,7 @@ describe("landing navigation", () => {
     { isAdmin: true, isComplete: false, organizerStatus: "none" as const },
   ])("renders one closed account control without redundant actions for %o", permissions => {
     const html = renderToStaticMarkup(createElement(LandingHeader, {
-      account: { dashboardHref: defaultDashboard(permissions), firstName: "Alex", initial: "A" },
+      account: { dashboardHref: homeFor(permissions), firstName: "Alex", initial: "A" },
     }));
     expect(html.match(/aria-label="Account menu, Alex"/g)).toHaveLength(1);
     expect(html).toContain('aria-haspopup="menu"');

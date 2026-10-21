@@ -2,34 +2,33 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Suspense } from "react";
-import { ArrowRight, Award, CalendarDays, CirclePlay, GraduationCap, QrCode, UsersRound } from "lucide-react";
+import { ArrowRight, CalendarDays, GraduationCap, MonitorPlay, QrCode, UsersRound } from "lucide-react";
 
 import { LandingHeader } from "@/components/landing/landing-header";
 import { BrandLogo } from "@/components/shared/brand-logo";
 import { getCurrentUser } from "@/lib/auth/dal";
-import { defaultDashboard } from "@/lib/navigation";
+import { homeFor } from "@/lib/navigation";
 
 export const metadata: Metadata = {
   title: "EventHub — Make Every Event Count",
-  description: "A centralized platform for university events, attendance management, and digital certificates at Wesleyan University–Philippines.",
+  description: "A centralized platform for university events, registration, and QR attendance at Wesleyan University–Philippines.",
 };
 
 const features = [
   { title: "Event Management", text: "Create and manage university events, registrations, and participants.", icon: CalendarDays, position: "md:-rotate-3 md:translate-y-3 lg:-rotate-6 lg:translate-y-4" },
   { title: "QR Attendance", text: "Record and monitor event attendance through secure QR codes.", icon: QrCode, position: "z-10 md:-translate-y-2" },
-  { title: "Digital Certificates", text: "Generate and verify certificates for eligible participants.", icon: Award, position: "md:rotate-3 md:translate-y-3 lg:rotate-6 lg:translate-y-4" },
+  { title: "Live Attendance Display", text: "Show each confirmed check-in on screen as participants scan.", icon: MonitorPlay, position: "md:rotate-3 md:translate-y-3 lg:rotate-6 lg:translate-y-4" },
 ];
 const steps = [
   { title: "Discover & Register", text: "Find university events and register for the activities you want to attend." },
   { title: "Attend & Check In", text: "Scan the event QR code to record your attendance." },
-  { title: "Get Your Certificate", text: "Access your verifiable digital certificate once you meet the event requirements." },
+  { title: "Track Your Status", text: "See your registration and attendance status on your dashboard." },
 ];
 const container = "mx-auto w-full max-w-6xl px-5 sm:px-8";
 const section = `${container} py-12 sm:py-16`;
 const eyebrow = "text-xs font-semibold uppercase tracking-[.14em] text-orange-800";
 const heading = "text-2xl font-semibold leading-tight tracking-[-.03em] text-balance sm:text-3xl";
 const startButton = "inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[8px] bg-orange-800 px-7 text-base font-semibold text-white transition-colors hover:bg-orange-900 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange-800 active:bg-orange-950 sm:px-8";
-const demoButton = "inline-flex min-h-[54px] items-center justify-center gap-3 rounded-[8px] border border-stone-300 bg-white px-7 text-base font-semibold text-slate-900 transition-colors hover:border-slate-500 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange-800 active:bg-stone-100 sm:px-8";
 
 function StartLink({ href, label = "Get Started" }: { href: string; label?: string }) {
   return <Link href={href} className={startButton}>{label}<ArrowRight className="size-[18px]" aria-hidden="true" /></Link>;
@@ -39,7 +38,7 @@ async function GetStarted() {
   const user = await getCurrentUser();
   // Reuse the auth entry policy; destination routes still enforce onboarding and roles. The label
   // says where a signed-in visitor is going instead of implying sign-up.
-  return user ? <StartLink href={defaultDashboard(user)} label="Go to Dashboard" /> : <StartLink href="/signup" />;
+  return user ? <StartLink href={homeFor(user)} label="Go to Dashboard" /> : <StartLink href="/signup" />;
 }
 
 // Resolve the verified session on the server; the static shell stays neutral while it streams.
@@ -47,7 +46,7 @@ async function AccountHeader() {
   const user = await getCurrentUser();
   const firstName = user?.profile.first_name?.trim() || "";
   return <LandingHeader account={user ? {
-    dashboardHref: defaultDashboard(user),
+    dashboardHref: homeFor(user),
     firstName,
     initial: (firstName || user.email || "A").slice(0, 1).toUpperCase(),
   } : null} />;
@@ -65,11 +64,10 @@ export default function Home() {
             <div className="min-w-0">
               <p className={`mb-5 ${eyebrow} lg:text-sm`}>Wesleyan University–Philippines</p>
               <h1 id="hero-title" className="max-w-xl text-[2.25rem] font-bold leading-[1.1] tracking-[-.04em] text-balance sm:text-[2.75rem] lg:text-[4rem]">Make Every<br className="hidden lg:block" /> Event <span className="text-orange-800">Count.</span></h1>
-              <p className="mt-5 max-w-md text-base leading-relaxed text-slate-600 sm:text-lg lg:text-xl">A centralized platform for university events, attendance management, and digital certificates.</p>
-              {/* Stacked full width on narrow phones; side by side once both fit. */}
-              <div className="mt-7 flex flex-col gap-3 min-[420px]:flex-row min-[420px]:items-center">
+              <p className="mt-5 max-w-md text-base leading-relaxed text-slate-600 sm:text-lg lg:text-xl">A centralized platform for university events, registration, and QR attendance.</p>
+              {/* One primary action: full width on narrow phones, natural width once it fits. */}
+              <div className="mt-8 flex flex-col min-[420px]:flex-row">
                 <Suspense fallback={<span className={`${startButton} min-w-48`} role="status"><span className="sr-only">Loading account</span><span aria-hidden="true">&nbsp;</span></span>}><GetStarted /></Suspense>
-                <Link href="/demo" className={demoButton}><CirclePlay className="size-[18px]" aria-hidden="true" />View Demo</Link>
               </div>
             </div>
             <aside className="min-w-0 rounded-xl bg-slate-900 p-6 text-white sm:p-8" aria-labelledby="roles-title">
@@ -78,11 +76,11 @@ export default function Home() {
               <div className="mt-6 divide-y divide-slate-700 border-t border-slate-700">
                 <div className="flex gap-4 py-5">
                   <GraduationCap className="mt-0.5 size-5 shrink-0 text-orange-300" aria-hidden="true" />
-                  <div><h3 className="text-sm font-semibold lg:text-base">For Students</h3><p className="mt-1.5 text-sm leading-relaxed text-slate-300 lg:text-[1.0625rem]">Discover university events, manage participation, and access digital certificates.</p></div>
+                  <div><h3 className="text-sm font-semibold lg:text-base">For Students</h3><p className="mt-1.5 text-sm leading-relaxed text-slate-300 lg:text-[1.0625rem]">Discover university events, register in one tap, and check in with a QR scan.</p></div>
                 </div>
                 <div className="flex gap-4 pt-5">
                   <UsersRound className="mt-0.5 size-5 shrink-0 text-orange-300" aria-hidden="true" />
-                  <div><h3 className="text-sm font-semibold lg:text-base">For Organizers</h3><p className="mt-1.5 text-sm leading-relaxed text-slate-300 lg:text-[1.0625rem]">Create and manage events, monitor attendance, and issue certificates.</p></div>
+                  <div><h3 className="text-sm font-semibold lg:text-base">For Organizers</h3><p className="mt-1.5 text-sm leading-relaxed text-slate-300 lg:text-[1.0625rem]">Create events, manage registrations, and run QR attendance.</p></div>
                 </div>
               </div>
             </aside>
@@ -118,8 +116,8 @@ export default function Home() {
                         <QrCode className="size-20" strokeWidth={1.25} />
                       </div>
                     ) : (
-                      <div className="flex h-28 w-24 items-center justify-center rounded-sm border border-slate-600">
-                        <Award className="size-16" strokeWidth={1} />
+                      <div className="flex h-24 w-32 items-center justify-center rounded-sm border border-slate-600">
+                        <MonitorPlay className="size-14" strokeWidth={1} />
                       </div>
                     )}
                   </div>

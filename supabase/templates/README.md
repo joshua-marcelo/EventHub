@@ -25,7 +25,7 @@ Branded templates for Supabase Auth: dark charcoal header, warm orange call to a
 
 ## Link formats
 
-- Organizer invitation: `{{ .SiteURL }}/accept-invitation#token_hash={{ .TokenHash }}&type=invite`. The app verifies this token only on explicit password submission, then binds a protected retry proof to the verified identity. The invite template, correct Site URL, redirect allowlist and one-hour OTP expiry must be reviewed in the hosted dashboard before any approved live invitation test. A default-template session or an ordinary signed-in session is not accepted as invitation proof.
+- Organizer invitation (retired 2026-10-21; new Organizers are created directly by an Admin, and the template is no longer sent): `{{ .SiteURL }}/accept-invitation#token_hash={{ .TokenHash }}&type=invite`. The app verifies this token only on explicit password submission, then binds a protected retry proof to the verified identity. The invite template, correct Site URL, redirect allowlist and one-hour OTP expiry must be reviewed in the hosted dashboard before any approved live invitation test. A default-template session or an ordinary signed-in session is not accepted as invitation proof.
 
 - Confirmation: `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next={{ .RedirectTo | urlquery }}`. It is verified server-side on open, then redirects to the sanitized `next` (off-site values are ignored).
 - Recovery: `{{ .SiteURL }}/reset-password#token_hash={{ .TokenHash }}&type=recovery`. The fragment never reaches the server on a GET or in a Referer, so link scanners cannot spend it, and it works on any device or browser.

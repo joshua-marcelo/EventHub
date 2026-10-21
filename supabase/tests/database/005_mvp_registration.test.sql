@@ -57,6 +57,12 @@ select is(public.publish_event('be000000-0000-4000-8000-000000000001'),'ok','org
 select is(public.publish_event('be000000-0000-4000-8000-000000000002'),'ok','manual approval event published');
 select is(public.publish_event('be000000-0000-4000-8000-000000000003'),'ok','unlisted event published');
 select ok((select invite_code ~ '^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$' from public.events where id = 'be000000-0000-4000-8000-000000000001'),'invite uses approved alphabet');
+-- Existing registration regressions run with explicit organizer authorization.
+do $ begin
+  perform public.set_event_registration('be000000-0000-4000-8000-000000000001',true);
+  perform public.set_event_registration('be000000-0000-4000-8000-000000000002',true);
+  perform public.set_event_registration('be000000-0000-4000-8000-000000000003',true);
+end $;
 select is(public.register_for_event('be000000-0000-4000-8000-000000000001'),'own_event','organizer cannot register for own event');
 select set_config('request.jwt.claims','{"sub":"b1000000-0000-4000-8000-000000000004","role":"authenticated","is_anonymous":false}',true);
 select is(public.publish_event('be000000-0000-4000-8000-000000000004'),'not_found','other organizer cannot publish draft');
