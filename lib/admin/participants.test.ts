@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const m = vi.hoisted(() => ({ requireAdmin: vi.fn(), createClient: vi.fn(), failProfiles: false, failInvitations: null as null | { code: string } }));
+const m = vi.hoisted(() => ({ requireAdmin: vi.fn(), createClient: vi.fn(), createAdminClient: vi.fn(), failProfiles: false, failInvitations: null as null | { code: string } }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/dal", () => ({ requireAdmin: m.requireAdmin }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: m.createClient }));
-import { MAX_EXCLUDED_INVITATIONS, PAGE_SIZE, directoryHref, getParticipantDirectory, pageWindow, parseDirectoryParams, profileStatus } from "./participants";
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: m.createAdminClient }));
+import { MAX_EXCLUDED_INVITATIONS, PAGE_SIZE, isReservedTestEmail, directoryHref, getParticipantDirectory, pageWindow, parseDirectoryParams, profileStatus } from "./participants";
 import { getOrganizerDirectory } from "./organizers";
 
 type Row = Record<string, unknown>;
@@ -55,6 +56,7 @@ beforeEach(() => {
   profileCalls = [];
   const inviteCalls: Call[][] = [];
   m.requireAdmin.mockResolvedValue({ id: "admin" });
+  m.createAdminClient.mockImplementation(() => { throw new Error("Account administration is not configured."); });
   m.createClient.mockResolvedValue({
     from: (name: string) => name === "profiles"
       ? table(() => [...regulars, ...others], profileCalls, () => m.failProfiles && { code: "42501" })
@@ -125,6 +127,40 @@ describe("Participants directory classification", () => {
   });
 });
 
+describe("Retired QA accounts", () => {
+  const future = new Date(Date.now() + 86_400_000).toISOString();
+  const authUsers = (users: { id: string; email: string; banned_until?: string }[]) => m.createAdminClient.mockReturnValue({ auth: { admin: { listUsers: vi.fn().mockResolvedValue({ data: { users }, error: null }) } } });
+
+  it("hides only accounts that are both banned in Auth and on a reserved .test domain, before counting", async () => {
+    regulars.push(person("qa-real-domain", 40, { email: "qa-participant@gmail.com" }));
+    try {
+      authUsers([
+        { id: "p22", email: "p22@example.test", banned_until: future }, // retired QA account
+        { id: "p21", email: "p21@example.test" }, // .test but not banned: still listed
+        { id: "qa-real-domain", email: "qa-participant@gmail.com", banned_until: future }, // banned, real domain: still listed
+        { id: "p20", email: "p20@example.test", banned_until: "2000-01-01T00:00:00Z" }, // ban expired: still listed
+      ]);
+      const r = await run();
+      expect(r.total).toBe(23);
+      expect(ids(r.rows)).not.toContain("p22");
+      expect(ids(r.rows)).toEqual(expect.arrayContaining(["qa-real-domain", "p21", "p20"]));
+      expect(profileCalls[0]).toEqual(expect.arrayContaining([["not", "id", "in", "(p22)"]]));
+    } finally { regulars.pop(); }
+  });
+
+  it("hides nothing when the Admin API is unavailable or fails", async () => {
+    expect((await run()).total).toBe(23);
+    m.createAdminClient.mockReturnValue({ auth: { admin: { listUsers: vi.fn().mockResolvedValue({ data: null, error: { message: "x" } }) } } });
+    expect((await run()).total).toBe(23);
+  });
+
+  it("recognizes only the reserved .test TLD", () => {
+    expect(isReservedTestEmail("qa@example.test")).toBe(true);
+    expect(isReservedTestEmail("qa@mail.example.test")).toBe(true);
+    for (const e of ["qa-test@gmail.com", "x@test.com", "x@example.testing", undefined]) expect(isReservedTestEmail(e)).toBe(false);
+  });
+});
+
 describe("Organizer Management classification", () => {
   it("keeps active, suspended and revoked organizers and excludes admin accounts", async () => {
     const { organizers } = await getOrganizerDirectory();
@@ -158,8 +194,8 @@ describe("directory parameters and labels", () => {
   });
 
   it("labels missing student profiles, keeping invited organizers as not required on the details page", () => {
-    expect(profileStatus({ isComplete: null, isOrganizer: false, invited: false }).label).toBe("Incomplete");
-    expect(profileStatus({ isComplete: false, isOrganizer: true, invited: true })).toEqual({ label: "Not required", optional: true });
-    expect(profileStatus({ isComplete: true, isOrganizer: true, invited: true }).label).toBe("Complete");
+    expect(profileStatus({ isComplete: null, isOrganizer: false }).label).toBe("Incomplete");
+    expect(profileStatus({ isComplete: false, isOrganizer: true })).toEqual({ label: "Not required", optional: true });
+    expect(profileStatus({ isComplete: true, isOrganizer: true }).label).toBe("Complete");
   });
 });

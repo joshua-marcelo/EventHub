@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeftIcon, TriangleAlertIcon } from "lucide-react";
 
 import { Panel } from "@/components/admin/admin-ui";
-import { OrganizerStatusButtons } from "@/components/admin/organizer-status-actions";
+import { OrganizerStatusButtons, ResetPasswordButton } from "@/components/admin/organizer-status-actions";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -24,22 +24,17 @@ async function Content({ params, searchParams }: Pick<PageProps<"/admin/users/[u
   const { userId } = await params;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) notFound();
   const client = await createClient();
-  const [{ data: u, error }, invitation] = await Promise.all([
-    client.from("profiles").select("first_name,middle_name,last_name,suffix,email,student_id,year_level,is_admin,is_complete,organizer_status,organizer_status_reason,organizer_since,identity_flagged_at,identity_flag_reason,created_at,colleges(name),programs(name)").eq("id", userId).maybeSingle(),
-    client.from("organizer_invitations").select("id").eq("user_id", userId).eq("state", "accepted").limit(1),
-  ]);
+  const { data: u, error } = await client.from("profiles").select("first_name,middle_name,last_name,suffix,email,student_id,year_level,is_admin,is_complete,organizer_status,organizer_status_reason,organizer_since,identity_flagged_at,identity_flag_reason,created_at,colleges(name),programs(name)").eq("id", userId).maybeSingle();
   if (error) throw new Error("Could not load this user.");
   if (!u) notFound();
-  // Before the invitation migration is applied nobody can have been invited, so a missing table means "not invited".
-  if (invitation.error && !["PGRST205", "42P01"].includes(invitation.error.code)) throw new Error("Could not load this user.");
   const fromOrganizers = (await searchParams).from === "organizers";
   const back = fromOrganizers ? { href: "/admin/organizers", label: "Organizers" } : { href: "/admin/users", label: "Participants" };
 
   const name = [u.first_name, u.middle_name, u.last_name, u.suffix].filter(Boolean).join(" ") || "Name not set";
   const isOrganizer = u.organizer_status !== "none";
-  // Directly invited organizers get organizer access without student onboarding, so missing student
-  // details are expected rather than a problem. Everyone else keeps the participant completeness rule.
-  const profile = profileStatus({ isComplete: u.is_complete, isOrganizer, invited: Boolean(invitation.data?.length) });
+  // Organizers get organizer access without student onboarding, so missing student details are
+  // expected rather than a problem. Everyone else keeps the participant completeness rule.
+  const profile = profileStatus({ isComplete: u.is_complete, isOrganizer });
   const studentOptional = profile.optional;
   const missing = studentOptional ? "Not provided" : "Not set";
   const account: Fact[] = [["Email", u.email], ["Joined", formatDateTime(u.created_at)], ["Student profile", profile.label, studentOptional]];
@@ -65,7 +60,7 @@ async function Content({ params, searchParams }: Pick<PageProps<"/admin/users/[u
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,13fr)_minmax(0,7fr)]">
       <div className="space-y-6">
         <Panel title="Account"><Facts facts={account} /></Panel>
-        <Panel title="Student profile" description={studentOptional ? "Optional for invited organizers." : undefined}><Facts facts={student} /></Panel>
+        <Panel title="Student profile" description={studentOptional ? "Needed only to join events as a participant." : undefined}><Facts facts={student} /></Panel>
       </div>
 
       <div className="space-y-6">
@@ -75,6 +70,10 @@ async function Content({ params, searchParams }: Pick<PageProps<"/admin/users/[u
             <Role label="Organizer" value={isOrganizer ? <StatusBadge status={u.organizer_status} /> : "No access"} />
             <Role label="Admin" value={u.is_admin ? "Yes" : "No"} />
           </dl>
+        </Panel>
+
+        <Panel title="Sign-in" description="There is no email recovery. Issue a one-time temporary password when the account holder cannot sign in.">
+          <div className="p-4"><ResetPasswordButton id={userId} name={name} targetIsAdmin={u.is_admin} currentAdminId={admin.id} /></div>
         </Panel>
 
         {isOrganizer && <Panel title="Organizer access">

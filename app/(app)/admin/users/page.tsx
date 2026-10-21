@@ -3,7 +3,8 @@ import Link from "next/link";
 import { UsersIcon, UserSearchIcon } from "lucide-react";
 
 import { Initials, PanelEmpty, fullName } from "@/components/admin/admin-ui";
-import { bindOrganizerActions } from "@/components/admin/organizer-status-actions";
+import { CreateAccountDialog } from "@/components/admin/create-account-dialog";
+import { bindOrganizerActions, bindResetPassword } from "@/components/admin/organizer-status-actions";
 import { ParticipantFilters } from "@/components/admin/participant-filters";
 import { UserRowActions } from "@/components/admin/user-row-actions";
 import { PageSkeleton } from "@/components/page-skeleton";
@@ -19,7 +20,7 @@ export const metadata = { title: "Participants" };
 
 export default function Page({ searchParams }: PageProps<"/admin/users">) {
   return <div className="space-y-6">
-    <PageHeader title="Participants" description="Regular participant accounts. Organizers, including suspended, revoked and invited ones, are managed under Organizers; administrator accounts are not listed." />
+    <PageHeader title="Participants" description="Regular participant accounts. Organizers, including suspended and revoked ones, are managed under Organizers; administrator accounts are not listed." action={<CreateAccountDialog role="participant" />} />
     <Suspense fallback={<PageSkeleton />}><Content searchParams={searchParams} /></Suspense>
   </div>;
 }
@@ -40,7 +41,7 @@ async function Content({ searchParams }: Pick<PageProps<"/admin/users">, "search
 
       <DataTable caption="Participant accounts, newest first" rowKey={u => u.id} rows={rows} empty={filtered
         ? <div className="space-y-3"><PanelEmpty icon={UserSearchIcon} title="No matching participants" description="Check the spelling, search by email or student ID, or clear the filters." /><Link href="/admin/users" className={buttonVariants({ variant: "outline", size: "sm" })}>Clear filters</Link></div>
-        : <PanelEmpty icon={UsersIcon} title="No participants yet" description="Participant accounts appear here as soon as people sign up." />} columns={[
+        : <PanelEmpty icon={UsersIcon} title="No participants yet" description="Participant accounts appear here as soon as people sign up or you create one." />} columns={[
         { key: "name", label: "Participant", className: "min-w-44 whitespace-normal px-3", render: u => <div className="flex items-center gap-3">
           <Initials name={fullName(u)} />
           <div className="min-w-0">
@@ -53,8 +54,8 @@ async function Content({ searchParams }: Pick<PageProps<"/admin/users">, "search
         { key: "college", label: "College", className: "hidden whitespace-normal px-3 lg:table-cell", render: u => u.colleges ? <span className="line-clamp-2">{u.colleges.name}</span> : <span className="text-muted-foreground">—</span> },
         { key: "profile", label: "Profile", className: "hidden px-3 sm:table-cell", render: u => <ProfileCell user={u} /> },
         { key: "joined", label: "Joined", className: "hidden whitespace-nowrap px-3 xl:table-cell", render: u => <span className="text-muted-foreground">{formatDate(u.created_at)}</span> },
-        // Regular participants have no suspend/delete state; the menu offers View details (organizer actions bind to nothing here).
-        { key: "actions", label: "Actions", className: "w-16 px-3 text-right", render: u => <UserRowActions name={fullName(u)} detailsHref={`/admin/users/${u.id}`} organizerStatus={u.organizer_status} actions={bindOrganizerActions(u.id, u.organizer_status, adminId)} /> },
+        // Regular participants have no suspend/delete state; the menu offers View details and Reset password (organizer actions bind to nothing here).
+        { key: "actions", label: "Actions", className: "w-16 px-3 text-right", render: u => <UserRowActions name={fullName(u)} detailsHref={`/admin/users/${u.id}`} organizerStatus={u.organizer_status} actions={bindOrganizerActions(u.id, u.organizer_status, adminId)} resetPassword={bindResetPassword(u.id, u.is_admin, adminId)} /> },
       ]} />
 
       {w.totalPages > 1 && <Pagination aria-label="Participants pages">
@@ -69,7 +70,7 @@ async function Content({ searchParams }: Pick<PageProps<"/admin/users">, "search
 }
 
 function ProfileCell({ user: u }: { user: DirectoryRow }) {
-  // Organizers (including invited ones) are not listed here, so the participant completeness rule applies.
-  const status = profileStatus({ isComplete: u.is_complete, isOrganizer: false, invited: false });
+  // Organizers are not listed here, so the participant completeness rule applies.
+  const status = profileStatus({ isComplete: u.is_complete, isOrganizer: false });
   return <span className={u.is_complete ? "text-foreground" : "text-muted-foreground"}>{status.label}</span>;
 }

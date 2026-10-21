@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({ change: vi.fn() }));
 vi.mock("@/lib/mvp/actions", () => ({ changeOrganizerStatus: m.change }));
 vi.mock("@/components/admin/confirm-action-dialog", () => ({ ConfirmActionDialog: () => null }));
+vi.mock("@/components/admin/reset-password-dialog", () => ({ ResetPasswordDialog: () => null }));
+vi.mock("@/lib/admin/accounts", () => ({ resetAccountPassword: async () => ({ ok: false, error: "mock" }) }));
 import { bindOrganizerActions } from "@/components/admin/organizer-status-actions";
 import { availableOrganizerActions, organizerActionCopy } from "./organizer-actions";
 

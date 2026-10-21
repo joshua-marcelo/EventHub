@@ -49,8 +49,8 @@ export function PanelEmpty({ icon: Icon, title, description }: { icon: Icon; tit
 /** Status filter rendered as links (server-side filtering through `?status=`). */
 export function FilterTabs({ label, options, current }: { label: string; options: { value: string; label: string; count: number; href: string }[]; current: string }) {
   return <nav aria-label={label} className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
-    {options.map(o => <Link key={o.value} href={o.href} aria-current={o.value === current ? "page" : undefined} className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-ring", o.value === current ? "border-slate-900 bg-slate-900 text-white" : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground")}>
-      {o.label}<span className={cn("tabular-nums text-xs", o.value === current ? "text-slate-300" : "text-muted-foreground")}>{o.count}</span>
+    {options.map(o => <Link key={o.value} href={o.href} aria-current={o.value === current ? "page" : undefined} className={cn("inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-ring", o.value === current ? "border-primary bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground")}>
+      {o.label}<span className={cn("tabular-nums text-xs", o.value === current ? "text-primary-foreground/70" : "text-muted-foreground")}>{o.count}</span>
     </Link>)}
   </nav>;
 }

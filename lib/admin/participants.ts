@@ -2,6 +2,7 @@ import "server-only";
 
 import { requireAdmin } from "@/lib/auth/dal";
 import type { Database } from "@/lib/database.types";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const PAGE_SIZE = 10;
@@ -51,10 +52,10 @@ export function pageWindow(page: number, total: number) {
 }
 
 /** Student-profile wording shared by the directory and the user details page. */
-export function profileStatus({ isComplete, isOrganizer, invited }: { isComplete: boolean | null; isOrganizer: boolean; invited: boolean }) {
+export function profileStatus({ isComplete, isOrganizer }: { isComplete: boolean | null; isOrganizer: boolean }) {
   if (isComplete) return { label: "Complete", optional: false };
-  // Directly invited organizers get organizer access without student onboarding.
-  if (isOrganizer && invited) return { label: "Not required", optional: true };
+  // Organizer access never depends on student onboarding; it is needed only to join events as a Participant.
+  if (isOrganizer) return { label: "Not required", optional: true };
   return { label: "Incomplete", optional: false };
 }
 
@@ -68,7 +69,8 @@ const MISSING_TABLE = ["PGRST205", "42P01"];
  *
  * Regular Participant = not an admin, never an organizer (organizer_status stays 'none' only if access
  * was never granted: no transition returns to 'none'), and not an outstanding organizer invitee
- * (invitees' accounts are pre-created with id = invitation id and are listed under Pending Invitations).
+ * (invitees' accounts were pre-created with id = invitation id by the retired email-invitation workflow).
+ * Retired QA accounts are also left out (see retiredQaAccountIds).
  * This is directory classification only; roles and permissions are unchanged.
  */
 export async function getParticipantDirectory(params: DirectoryParams) {
@@ -82,9 +84,12 @@ export async function getParticipantDirectory(params: DirectoryParams) {
   // Fail closed rather than listing invitees as Participants once the id list is too long for one request.
   if (inviteeIds.length > MAX_EXCLUDED_INVITATIONS) throw new Error("Too many outstanding organizer invitations to classify participants.");
 
+  const retiredQaIds = await retiredQaAccountIds();
+
   const page = async (n: number) => {
     let query = client.from("profiles").select(COLUMNS, { count: "exact" }).eq("is_admin", false).eq("organizer_status", "none");
     if (inviteeIds.length) query = query.not("id", "in", `(${inviteeIds.join(",")})`);
+    if (retiredQaIds.length) query = query.not("id", "in", `(${retiredQaIds.join(",")})`);
     if (params.q) query = query.or(["first_name", "last_name", "email", "student_id"].map(c => `${c}.ilike.%${params.q}%`).join(","));
     if (params.college) query = query.eq("college_id", params.college);
     const from = (n - 1) * PAGE_SIZE;
@@ -99,6 +104,28 @@ export async function getParticipantDirectory(params: DirectoryParams) {
   const total = result.count ?? rows.length;
 
   return { adminId: admin.id, rows, total, window: pageWindow(params.page, total) };
+}
+
+/** A domain under the reserved `.test` TLD (RFC 2606): no real mailbox can exist there. */
+export function isReservedTestEmail(email: string | undefined) { return /@([a-z0-9-]+\.)*test$/i.test(email ?? ""); }
+
+/**
+ * Retired QA accounts = banned in Supabase Auth AND on a reserved `.test` domain. Both must hold: a ban
+ * alone could be a real participant, and a `.test` address alone is never hidden while it can sign in.
+ * Records are only hidden from this directory; profiles, Auth users and audit logs are untouched.
+ * Without the Admin API key nothing is hidden (fail open toward showing accounts, never hiding real ones).
+ */
+export async function retiredQaAccountIds(now = Date.now()) {
+  let admin;
+  try { admin = createAdminClient(); } catch { return []; }
+  const ids: string[] = [];
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) return [];
+    for (const u of data.users) if (u.banned_until && Date.parse(u.banned_until) > now && isReservedTestEmail(u.email)) ids.push(u.id);
+    if (data.users.length < 1000) break;
+  }
+  return ids.slice(0, MAX_EXCLUDED_INVITATIONS);
 }
 
 export async function getCollegeOptions() {

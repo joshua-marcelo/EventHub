@@ -26,7 +26,7 @@ export function LookupManager({ data }: { data: LookupData }) {
   const router = useRouter();
   const [editing, setEditing] = useState<LookupInput | null>(null);
   const [college, setCollege] = useState("");
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
   const rows: Record<LookupKind, LookupInput[]> = {
     colleges: data.colleges.map(row => ({ ...row, kind: "colleges" })),
     programs: data.programs.filter(row => !college || row.college_id === Number(college)).map(row => ({ ...row, kind: "programs" })),
@@ -36,12 +36,16 @@ export function LookupManager({ data }: { data: LookupData }) {
     const common = { id: null, name: "", is_active: true };
     setEditing(kind === "colleges" ? { ...common, kind, code: `CL-${crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}` } : kind === "programs" ? { ...common, kind, college_id: Number(college) || data.colleges.find(c => c.is_active)?.id || 0 } : { ...common, kind, slug: "", sort_order: 0 });
   }
-  function toggle(row: LookupInput) {
-    startTransition(async () => {
+  async function toggle(row: LookupInput) {
+    setPending(true);
+    try {
       const result = await saveLookup({ ...row, is_active: !row.is_active });
       if (!result.ok) toast.error(result.error);
       else { toast.success(result.message); router.refresh(); }
-    });
+      return result.ok;
+    } finally {
+      setPending(false);
+    }
   }
   function columns(kind: LookupKind): Column<LookupInput>[] {
     const fields: Column<LookupInput>[] = [{ key: "name", label: "Name", render: row => <div className="space-y-1.5"><span className="block max-w-sm whitespace-normal font-medium">{row.name}</span><div className="sm:hidden"><StatusBadge status={row.is_active ? "active" : "inactive"} /></div></div> }];
