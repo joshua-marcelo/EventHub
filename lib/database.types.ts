@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_provisions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          email: string
+          id: string
+          reserved_at: string
+          role: string
+          state: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          email: string
+          id?: string
+          reserved_at?: string
+          role: string
+          state?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          email?: string
+          id?: string
+          reserved_at?: string
+          role?: string
+          state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_provisions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance_device_signals: {
         Row: {
           created_at: string
@@ -528,6 +569,7 @@ export type Database = {
           organizer_id: string
           published_at: string | null
           registration_closes_at: string | null
+          registration_open: boolean
           registration_opens_at: string | null
           search: unknown
           starts_at: string | null
@@ -559,6 +601,7 @@ export type Database = {
           organizer_id: string
           published_at?: string | null
           registration_closes_at?: string | null
+          registration_open?: boolean
           registration_opens_at?: string | null
           search?: unknown
           starts_at?: string | null
@@ -590,6 +633,7 @@ export type Database = {
           organizer_id?: string
           published_at?: string | null
           registration_closes_at?: string | null
+          registration_open?: boolean
           registration_opens_at?: string | null
           search?: unknown
           starts_at?: string | null
@@ -791,6 +835,7 @@ export type Database = {
           is_complete: boolean | null
           last_name: string | null
           middle_name: string | null
+          must_change_password: boolean
           organizer_since: string | null
           organizer_status: Database["public"]["Enums"]["organizer_status"]
           organizer_status_reason: string | null
@@ -815,6 +860,7 @@ export type Database = {
           is_complete?: boolean | null
           last_name?: string | null
           middle_name?: string | null
+          must_change_password?: boolean
           organizer_since?: string | null
           organizer_status?: Database["public"]["Enums"]["organizer_status"]
           organizer_status_reason?: string | null
@@ -839,6 +885,7 @@ export type Database = {
           is_complete?: boolean | null
           last_name?: string | null
           middle_name?: string | null
+          must_change_password?: boolean
           organizer_since?: string | null
           organizer_status?: Database["public"]["Enums"]["organizer_status"]
           organizer_status_reason?: string | null
@@ -907,6 +954,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_event_lifecycle: { Args: { p_event_id: string }; Returns: Json }
+      set_event_registration: { Args: { p_event_id: string; p_open: boolean }; Returns: string }
       accept_privacy_notice: { Args: { p_version: string }; Returns: string }
       acquire_organizer_invitation: { Args: { p_id: string }; Returns: Json }
       begin_organizer_acceptance: {
@@ -917,6 +966,7 @@ export type Database = {
         Args: { p_id: string; p_reason: string }
         Returns: string
       }
+      cancel_password_reset: { Args: { p_user_id: string }; Returns: string }
       cancel_registration: { Args: { p_event_id: string }; Returns: string }
       check_organizer_acceptance: {
         Args: { p_hash: string; p_user_id: string }
@@ -1014,6 +1064,11 @@ export type Database = {
       }
       publish_event: { Args: { p_id: string }; Returns: string }
       register_for_event: { Args: { p_event_id: string }; Returns: string }
+      request_password_reset: { Args: { p_user_id: string }; Returns: Json }
+      reserve_account: {
+        Args: { p_email: string; p_role: string }
+        Returns: Json
+      }
       reserve_organizer_invitation: {
         Args: { p_email: string; p_first_name: string; p_last_name: string }
         Returns: Json
