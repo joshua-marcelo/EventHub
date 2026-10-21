@@ -10,6 +10,7 @@ function isNeverNext(path: string): boolean {
     p.startsWith("/signup/") ||
     p === "/forgot-password" ||
     p === "/accept-invitation" ||
+    p === "/change-password" ||
     p.startsWith("/auth/")
   );
 }

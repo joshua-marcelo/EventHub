@@ -5,6 +5,8 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn(async () => ({ aut
 vi.mock("@/lib/auth/dal", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/app-origin", () => ({ getAppOrigin: vi.fn(async () => "http://localhost:3000") }));
 vi.mock("@/lib/auth/pending-email", () => ({ readPendingEmail: vi.fn(), rememberPendingEmail: vi.fn() }));
+vi.mock("@/lib/supabase/isolated", () => ({ createIsolatedAuthClient: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 import { updatePassword } from "./actions";
 
 // Deliberately fake validation inputs; live checks generate their password in memory.

@@ -104,7 +104,7 @@ export function LoginForm() {
       <CardFooter className="flex flex-col gap-2 text-sm">
         <p className="text-muted-foreground">
           Don&apos;t have an account?{" "}
-          <Link href={signUpHref} className="text-foreground underline-offset-4 hover:underline">
+          <Link href={signUpHref} className="font-medium text-foreground underline underline-offset-4">
             Sign Up
           </Link>
         </p>

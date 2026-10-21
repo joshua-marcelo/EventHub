@@ -9,7 +9,7 @@ import { toast } from "sonner";
 
 import { FormAlert } from "@/components/forms/form-alert";
 import { PasswordField } from "./password-field";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { updatePassword } from "@/lib/auth/actions";
 import { type RecoveryCredential, readRecoveryLink, recoveryLinkError, recoveryLinkPresent } from "@/lib/auth/recovery";
 import { type ResetPasswordInput, resetPasswordSchema } from "@/lib/validation/auth";
@@ -76,7 +76,7 @@ export function ResetPasswordForm({ hasSession = false }: { hasSession?: boolean
     return (
       <div className="flex flex-col gap-4">
         <FormAlert>{formError ?? "This reset link is missing, expired, or already used. Request a new one."}</FormAlert>
-        <Button render={<Link href="/forgot-password" />}>Request a new link</Button>
+        <Link href="/forgot-password" data-slot="button" className={buttonVariants()}>Request a new link</Link>
       </div>
     );
   }

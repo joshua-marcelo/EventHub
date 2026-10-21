@@ -94,7 +94,7 @@ export function SignUpForm() {
       </CardContent>
       <CardFooter className="text-sm text-muted-foreground">
         Already have an account?&nbsp;
-        <Link href={loginHref} className="text-foreground underline-offset-4 hover:underline">
+        <Link href={loginHref} className="font-medium text-foreground underline underline-offset-4">
           Log In
         </Link>
       </CardFooter>

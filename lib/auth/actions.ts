@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { type ActionResult, fieldErrorsFrom } from "@/lib/action-result";
@@ -9,13 +10,16 @@ import { readPendingEmail, rememberPendingEmail } from "@/lib/auth/pending-email
 import { DEFAULT_AFTER_LOGIN, safeNextPath } from "@/lib/auth/redirect";
 import { type RecoveryCredential, recoveryCredentialSchema } from "@/lib/auth/recovery";
 import { createClient } from "@/lib/supabase/server";
+import { createIsolatedAuthClient } from "@/lib/supabase/isolated";
 import { getCurrentUser } from "@/lib/auth/dal";
-import { defaultDashboard } from "@/lib/navigation";
+import { ACCOUNT_PROFILE_PATH, CHANGE_PASSWORD_PATH, landingFor } from "@/lib/navigation";
 import {
   type EmailOnlyInput,
   emailOnlySchema,
   type LoginInput,
   loginSchema,
+  type ChangePasswordInput,
+  changePasswordSchema,
   type ResetPasswordInput,
   resetPasswordSchema,
   type SignUpInput,
@@ -39,7 +43,7 @@ export async function signUp(
   const { email, password, firstName, lastName } = parsed.data;
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -52,8 +56,13 @@ export async function signUp(
   // so the response never reveals whether an account exists (SYSTEM_SPEC §3.1).
   if (error) return { ok: false, error: authErrorMessage(error.code), code: error.code };
 
-  await rememberPendingEmail(email);
+  // With hosted email confirmation turned off (the MVP setting), sign-up returns a session: go
+  // straight to student onboarding. With it still on, keep the existing check-email step.
   const safeNext = safeNextPath(next, "");
+  if (data.session) {
+    redirect(safeNext ? `/onboarding?next=${encodeURIComponent(safeNext)}` : "/onboarding");
+  }
+  await rememberPendingEmail(email);
   redirect(safeNext ? `/signup/check-email?next=${encodeURIComponent(safeNext)}` : "/signup/check-email");
 }
 
@@ -75,7 +84,9 @@ export async function signIn(
   if (error) return { ok: false, error: authErrorMessage(error.code), code: error.code };
 
   const user = await getCurrentUser();
-  redirect(safeNextPath(next, user ? defaultDashboard(user) : DEFAULT_AFTER_LOGIN));
+  // A temporary password must be replaced before anything else; `next` is dropped on purpose.
+  if (user?.mustChangePassword) redirect(CHANGE_PASSWORD_PATH);
+  redirect(safeNextPath(next, user ? landingFor(user) : DEFAULT_AFTER_LOGIN));
 }
 
 /** Resend the confirmation email. `input.email` may be omitted on the check-email page. */
@@ -162,6 +173,43 @@ export async function updatePassword(input: ResetPasswordInput, recovery?: Recov
   // P-05: end every other session, e.g. someone who knew the old password.
   await supabase.auth.signOut({ scope: "others" });
   return { ok: true, message: "Your password was changed. Other devices were signed out." };
+}
+
+/**
+ * Change Password for a signed-in account, including the required first-login change of an
+ * Admin-issued temporary password. The current password is always verified, so an unattended or
+ * stale session cannot take over the account. The password-change flag is cleared by the database
+ * only because the password really changed (trigger on auth.users), never by this action.
+ */
+export async function changePassword(input: ChangePasswordInput, captchaToken?: string): Promise<ActionResult> {
+  const parsed = changePasswordSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: "Check the highlighted fields.", fieldErrors: fieldErrorsFrom(parsed.error.issues) };
+  }
+  const user = await getCurrentUser();
+  if (!user?.email) return { ok: false, error: authErrorMessage("session_not_found"), code: "session_not_found" };
+
+  // Verify the current password on an isolated client so this browser's session is untouched.
+  const verifier = createIsolatedAuthClient();
+  const check = await verifier.auth.signInWithPassword({ email: user.email, password: parsed.data.currentPassword, options: { captchaToken } });
+  if (check.error) {
+    const code = check.error.code === "invalid_credentials" ? "wrong_current_password" : check.error.code;
+    return code === "wrong_current_password"
+      ? { ok: false, error: "Your current password is incorrect.", code, fieldErrors: { currentPassword: "Your current password is incorrect." } }
+      : { ok: false, error: authErrorMessage(code), code };
+  }
+  await verifier.auth.signOut({ scope: "local" });
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+  if (error) {
+    const message = authErrorMessage(error.code);
+    return { ok: false, error: message, code: error.code, ...(error.code === "same_password" || error.code === "weak_password" ? { fieldErrors: { password: message } } : {}) };
+  }
+  // P-05: end every other session, e.g. someone who knew the old or temporary password.
+  await supabase.auth.signOut({ scope: "others" });
+  revalidatePath("/", "layout");
+  redirect(user.mustChangePassword ? landingFor(user) : `${ACCOUNT_PROFILE_PATH}?password=changed`);
 }
 
 /**
