@@ -22,3 +22,4 @@ export const scanMessages:Record<string,string>={
  registration_not_approved:"Your registration is not approved.",attendance_revoked:"Attendance revoked. See the organizer.",timed_in:"Time-in recorded.",already_timed_in:"Already timed in.",
  timed_out:"Time-out recorded.",already_timed_out:"Already timed out.",time_in_required:"No time-in recorded. See the organizer.",
 };
+

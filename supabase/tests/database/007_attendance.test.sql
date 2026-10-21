@@ -44,8 +44,12 @@ select set_config('request.jwt.claims','{"sub":"d1000000-0000-4000-8000-00000000
 select is(public.submit_attendance_scan(current_setting('test.token'),'device-test-123456')->>'code','profile_incomplete','incomplete participant denied');
 select set_config('request.jwt.claims','{"sub":"d1000000-0000-4000-8000-000000000005","role":"authenticated","is_anonymous":false}',true);
 select is(public.submit_attendance_scan(current_setting('test.token'),'device-test-123456')->>'code','not_registered','unregistered participant denied');
-select is(public.register_for_event('de000000-0000-4000-8000-000000000001'),'approved','onsite registration allowed during time-in');
-select is((select registration_channel::text from public.event_registrations where user_id=auth.uid()),'onsite','onsite channel recorded');
+select is(public.register_for_event('de000000-0000-4000-8000-000000000001'),'registration_closed','attendance permanently closes registration, including onsite');
+select is((select count(*)::int from public.event_registrations where user_id=auth.uid()),0,'closed registration creates no onsite record');
+-- Keep the existing time-out-without-time-in regression independent of registration creation.
+reset role;
+insert into public.event_registrations(event_id,user_id,status) values('de000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000005','approved');
+set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"d1000000-0000-4000-8000-000000000003","role":"authenticated","is_anonymous":false}',true);
 select is(public.submit_attendance_scan(current_setting('test.token'),'device-test-123456')->>'code','timed_in','second approved user times in');
 select is((select flag from public.attendance_records where user_id=auth.uid()),'shared_device','shared device flagged');
@@ -70,7 +74,8 @@ select throws_ok($$update public.events set starts_at=starts_at-interval '1 hour
 insert into public.events(id,organizer_id,title,description,venue,category_id,starts_at,ends_at,registration_opens_at,registration_closes_at,status)
 select 'de000000-0000-4000-8000-000000000002',organizer_id,'Future Attendance Event',description,venue,category_id,now()+interval '2 days',now()+interval '2 days 1 hour',registration_opens_at,registration_closes_at,'published' from public.events where id='de000000-0000-4000-8000-000000000001';
 set local role authenticated;
-select is(public.open_attendance_session('de000000-0000-4000-8000-000000000002','time_in'),'outside_window','future event attendance refused');
+-- Since 20261022090000 the Organizer opens attendance manually, regardless of the scheduled time.
+select is(public.open_attendance_session('de000000-0000-4000-8000-000000000002','time_in'),'ok','organizer opens attendance before the scheduled start');
 reset role;
 update public.profiles set organizer_status='suspended' where id='d1000000-0000-4000-8000-000000000001';
 set local role authenticated;

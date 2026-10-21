@@ -8,7 +8,8 @@ import { idSchema } from "@/lib/validation/mvp";
 import type { ActionResult } from "@/lib/action-result";
 import { qrStateSchema,feedSchema,type AttendanceState } from "@/lib/attendance";
 
-const messages:Record<string,string>={outside_window:"Attendance opens within the configured lead time and closes one hour after the event end.",time_out_started:"Time-out has started. Use an audited manual time-in for late arrivals.",attendance_locked:"Schedule and policy are locked after attendance starts.",invalid_status:"This action is unavailable. Check event status, attendance policy, and any issued certificate.",not_permitted:"You cannot manage this event.",reason_required:"Enter a reason."};
+// outside_window only comes from the database before migration 20261022090000 (manual attendance control) is applied.
+const messages:Record<string,string>={outside_window:"The database still limits attendance to the scheduled time. Apply the manual attendance update (migration 20261022090000), then try again.",invalid_status:"This action is unavailable for the event's current status (attendance needs a published event).",time_out_started:"Time-out has started. Use an audited manual time-in for late arrivals.",attendance_locked:"Schedule and policy are locked after attendance starts.",not_permitted:"You cannot manage this event.",reason_required:"Enter a reason."};
 function result(data:string|null,error:unknown):ActionResult {return !error&&data==="ok"?{ok:true,message:"Saved."}:{ok:false,error:messages[data??""]??"Could not save changes. Refresh and try again."};}
 export async function attendanceAction(eventId:string,kind:"time_in"|"time_out"|"close"|"complete"):Promise<ActionResult>{
  if(!idSchema.safeParse(eventId).success||!["time_in","time_out","close","complete"].includes(kind))return {ok:false,error:"Invalid action."};
