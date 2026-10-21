@@ -12,25 +12,28 @@ const otherOrganizer = "c1000000-0000-4000-8000-000000000002";
 const ownEvent = "c1000000-0000-4000-8000-0000000000e1";
 const othersEvent = "c1000000-0000-4000-8000-0000000000e2";
 const draft = { title: "Admin seminar", description: "", venue: "", category_id: "", host_college_id: "", starts_at: "", ends_at: "", registration_opens_at: "", registration_closes_at: "", capacity: "", approval_mode: "automatic", visibility: "public" };
+// The acting account owns ownEvent. As an active Organizer it uses organizer tools; as an Admin
+// without Organizer membership it keeps only the existing Admin cancel power.
+const organizer = { id: adminId, isAdmin: false, organizerStatus: "active" };
 const admin = { id: adminId, isAdmin: true, organizerStatus: "none" };
 
 beforeEach(() => {
   vi.resetAllMocks();
-  m.requireOrganizer.mockResolvedValue(admin);
+  m.requireOrganizer.mockResolvedValue(organizer);
   m.requireUser.mockResolvedValue(admin);
   m.createClient.mockResolvedValue({ rpc: m.rpc, from: () => ({ select: () => ({ eq: (_: string, id: string) => ({ maybeSingle: () => m.owner(id) }) }) }) });
   m.owner.mockImplementation(async (id: string) => ({ data: { organizer_id: id === ownEvent ? adminId : otherOrganizer } }));
   m.rpc.mockImplementation(async (name: string) => ({ data: name === "save_event" ? { code: "ok", id: ownEvent } : "ok", error: null }));
 });
 
-describe("Admin acting in the Organizer workspace", () => {
+describe("Event ownership and the Admin cancel power", () => {
   it("creates events through save_event without passing an owner, so the database assigns auth.uid()", async () => {
     expect(await saveEvent(null, draft)).toMatchObject({ ok: true, id: ownEvent });
     expect(m.requireOrganizer).toHaveBeenCalled();
     expect(m.rpc).toHaveBeenCalledExactlyOnceWith("save_event", { p_id: null, p_values: expect.not.objectContaining({ organizer_id: expect.anything() }) });
   });
 
-  it("edits and publishes only events the Admin owns", async () => {
+  it("edits and publishes only events the Organizer owns", async () => {
     expect(await saveEvent(ownEvent, draft)).toMatchObject({ ok: true });
     expect(await eventAction(ownEvent, "publish")).toMatchObject({ ok: true });
     expect(m.rpc).toHaveBeenCalledWith("publish_event", { p_id: ownEvent });
@@ -45,6 +48,12 @@ describe("Admin acting in the Organizer workspace", () => {
     expect(await eventAction(othersEvent, "cancel", "")).toMatchObject({ ok: false, code: "reason_required" });
     expect(await eventAction(othersEvent, "cancel", "Venue unavailable")).toMatchObject({ ok: true });
     expect(m.rpc).toHaveBeenCalledExactlyOnceWith("cancel_event", { p_id: othersEvent, p_reason: "Venue unavailable" });
+  });
+
+  it("does not let an Administrator without Organizer membership use organizer tools", async () => {
+    m.requireOrganizer.mockResolvedValue(admin);
+    expect(await eventAction(ownEvent, "publish")).toMatchObject({ ok: false, code: "not_permitted" });
+    expect(m.rpc).not.toHaveBeenCalled();
   });
 
   it.each(["suspended", "revoked"])("refuses a %s organizer (not Admin) publishing their own event", async status => {
