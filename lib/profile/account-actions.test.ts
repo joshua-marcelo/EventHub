@@ -61,3 +61,35 @@ describe("separate Student details", () => {
     expect(await saveStudentDetails(student)).toMatchObject({ ok: false, fieldErrors: { studentId: expect.stringContaining("registered") } });
   });
 });
+
+import { setAvatar } from "./actions";
+describe("profile photo", () => {
+  const user = { id: "u1", profile: { avatar_path: "u1/old.webp" } };
+  function client(updateError: unknown = null) {
+    const remove = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: updateError }) }));
+    m.client.mockResolvedValue({ from: () => ({ update }), storage: { from: () => ({ remove }) } });
+    return { update, remove };
+  }
+  it("saves the new path, deletes the old file and refreshes the layout (sidebar avatar)", async () => {
+    m.user.mockResolvedValue(user);
+    const c = client();
+    expect(await setAvatar("u1/0b1c2d3e-0000-4000-8000-000000000001.webp")).toMatchObject({ ok: true });
+    expect(c.update).toHaveBeenCalledWith({ avatar_path: "u1/0b1c2d3e-0000-4000-8000-000000000001.webp" });
+    expect(c.remove).toHaveBeenCalledWith(["u1/old.webp"]);
+    expect(m.revalidate).toHaveBeenCalledWith("/", "layout");
+  });
+  it("refuses another user's folder", async () => {
+    m.user.mockResolvedValue(user);
+    const c = client();
+    expect(await setAvatar("someone-else/new.webp")).toMatchObject({ ok: false, code: "invalid_path" });
+    expect(c.update).not.toHaveBeenCalled();
+  });
+  it("explains the registration photo lock and removes the unused upload", async () => {
+    m.user.mockResolvedValue(user);
+    const c = client({ code: "23514", message: "Student ID and photo are locked by an approved event registration" });
+    expect(await setAvatar("u1/0b1c2d3e-0000-4000-8000-000000000001.webp")).toMatchObject({ ok: false, error: "Your photo is locked while an approved event registration is active." });
+    expect(c.remove).toHaveBeenCalledWith(["u1/0b1c2d3e-0000-4000-8000-000000000001.webp"]);
+    expect(m.revalidate).not.toHaveBeenCalled();
+  });
+});

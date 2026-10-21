@@ -122,5 +122,7 @@ export async function setAvatar(path: string): Promise<ActionResult> {
   if (previous && previous !== path) {
     await supabase.storage.from("avatars").remove([previous]);
   }
+  // The sidebar avatar is rendered by the app layout; refresh it everywhere, not only on this page.
+  revalidatePath("/", "layout");
   return { ok: true, message: "Photo saved." };
 }
