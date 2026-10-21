@@ -2,65 +2,97 @@ import type { Database } from "@/lib/database.types";
 
 export type Dashboard = "participant" | "organizer" | "admin";
 export type Permissions = { isAdmin: boolean; isComplete: boolean; organizerStatus: Database["public"]["Enums"]["organizer_status"] };
-// `destination` and `description` name the switch link shown in the other dashboards.
 export const dashboards = {
-  participant: { label: "Participant", href: "/dashboard", destination: "Participant Dashboard", description: "Switch to participant view" },
-  organizer: { label: "Organizer", href: "/organizer", destination: "Organizer Dashboard", description: "Switch to organizer view" },
-  admin: { label: "Admin", href: "/admin", destination: "Admin Dashboard", description: "Switch to admin view" },
+  participant: { label: "Participant", href: "/dashboard" },
+  organizer: { label: "Organizer", href: "/organizer" },
+  admin: { label: "Admin", href: "/admin" },
 } as const;
+export type NavItem = { label: string; href: string; icon: "home" | "dashboard" | "events" | "explore" | "attendance" | "people" | "organizers" | "reference" | "admin" | "scan" | "create" };
 export const navigation = {
+  // Registered events are listed below these, under MY REGISTERED EVENTS.
   participant: [
-    { label: "Home", href: "/dashboard", icon: "home" },
-    { label: "My Events", href: "/my-events", icon: "events" },
-    { label: "Certificates", href: "/certificates", icon: "certificates" },
+    { label: "Dashboard", href: "/dashboard", icon: "home" },
+    { label: "Events", href: "/events", icon: "explore" },
   ],
+  // Registrations and Attendance belong to one event, under MY EVENTS.
   organizer: [
-    { label: "Overview", href: "/organizer", icon: "home" },
-    { label: "Events", href: "/organizer/events", icon: "events" },
-    { label: "Reports", href: "/organizer/reports", icon: "reports" },
+    { label: "Overview", href: "/organizer", icon: "dashboard" },
+    { label: "Create Event", href: "/organizer/events/new", icon: "create" },
   ],
   admin: [
     { label: "Overview", href: "/admin", icon: "home" },
     { label: "Organizers", href: "/admin/organizers", icon: "organizers" },
-    // Every account is a participant (sign-up always creates one); roles are added on top.
     { label: "Participants", href: "/admin/users", icon: "people" },
     { label: "Reference Data", href: "/admin/lookups", icon: "reference" },
   ],
-} as const;
+} as const satisfies Record<Dashboard, readonly NavItem[]>;
 /**
- * Organizer tools (create, edit, publish, attendance, certificates): active organizers, and admins
- * acting on events they own. Mirrors private.is_active_organizer() in the database, which stays the
- * authority; every organizer RPC is also limited to organizer_id = auth.uid().
+ * Organizer tools (create, edit, publish, attendance, certificates): active organizers only. Mirrors
+ * private.is_active_organizer() in the database, which stays the authority; every organizer RPC is
+ * also limited to organizer_id = auth.uid(). Administrators are not Organizers unless granted.
  */
-export function canUseOrganizerTools(user: Pick<Permissions, "isAdmin" | "organizerStatus">) {
-  return user.isAdmin || user.organizerStatus === "active";
+export function canUseOrganizerTools(user: Pick<Permissions, "organizerStatus">) {
+  return user.organizerStatus === "active";
 }
-/** Organizer workspace visibility: everyone with organizer tools, plus suspended/revoked organizers (read-only). */
-export function canViewOrganizerWorkspace(user: Pick<Permissions, "isAdmin" | "organizerStatus">) {
-  return user.isAdmin || user.organizerStatus !== "none";
+/** Organizer workspace visibility: active organizers, plus suspended/revoked organizers (read-only). */
+export function canViewOrganizerWorkspace(user: Pick<Permissions, "organizerStatus">) {
+  return user.organizerStatus !== "none";
 }
-export function permittedDashboards(user: Permissions): Dashboard[] {
-  return ["participant", ...(canViewOrganizerWorkspace(user) ? ["organizer"] : []), ...(user.isAdmin ? ["admin"] : [])] as Dashboard[];
+/** The account's own experience, by priority: Admin, then Organizer, then Participant. */
+export function roleDashboard(user: Pick<Permissions, "isAdmin" | "organizerStatus">): Dashboard {
+  return user.isAdmin ? "admin" : canViewOrganizerWorkspace(user) ? "organizer" : "participant";
 }
-/** Account-page context is presentation/navigation only, always limited to actual roles. */
-export function resolveWorkspaceContext(user: Permissions, requested?: unknown): Dashboard {
-  const allowed = permittedDashboards(user);
-  if (typeof requested === "string" && allowed.includes(requested as Dashboard)) return requested as Dashboard;
-  return user.isAdmin ? "admin" : user.organizerStatus !== "none" ? "organizer" : "participant";
+/** Default destination after login and for the brand link. Navigation only; never grants access. */
+export function homeFor(user: Pick<Permissions, "isAdmin" | "organizerStatus">) {
+  return dashboards[roleDashboard(user)].href;
 }
-export function accountProfileHref(workspace: Dashboard) { return `/account/profile?workspace=${workspace}`; }
-export function isSharedAccountPath(path: string) { return path === "/account/profile" || path === "/profile"; }
-export function defaultDashboard(user: Permissions) {
-  if (user.isAdmin && !user.isComplete) return "/admin";
-  return !user.isComplete && user.organizerStatus !== "none" ? "/organizer" : "/dashboard";
+/** Where to send an account right after login or a password change: a Participant without student
+ * details goes straight to Student Onboarding instead of bouncing through Home. */
+export function landingFor(user: Pick<Permissions, "isAdmin" | "organizerStatus" | "isComplete">) {
+  return roleDashboard(user) === "participant" && !user.isComplete ? "/onboarding" : homeFor(user);
 }
-export function dashboardForPath(path: string): Dashboard {
+function areaOfPath(path: string): Dashboard | null {
   if (path === "/admin" || path.startsWith("/admin/")) return "admin";
   if (path === "/organizer" || path.startsWith("/organizer/")) return "organizer";
-  return "participant";
+  return null;
 }
+/**
+ * Which sidebar to show. There is no workspace switcher: each account sees its own experience, and an
+ * account that really holds two roles (an Admin who is also an Organizer) sees the area it is in.
+ */
+export function shellDashboard(user: Pick<Permissions, "isAdmin" | "organizerStatus">, path: string): Dashboard {
+  const area = areaOfPath(path);
+  if (area === "admin" && user.isAdmin) return "admin";
+  if (area === "organizer" && canViewOrganizerWorkspace(user)) return "organizer";
+  return roleDashboard(user);
+}
+/** Sidebar items, plus a plain link to the other area for the rare account holding both roles. */
+export function navigationFor(user: Pick<Permissions, "isAdmin" | "organizerStatus">, dashboard: Dashboard): readonly NavItem[] {
+  const items: readonly NavItem[] = navigation[dashboard];
+  if (dashboard === "admin" && canViewOrganizerWorkspace(user)) return [...items, { label: "My Organizer Events", href: "/organizer", icon: "events" }];
+  if (dashboard === "organizer" && user.isAdmin) return [...items, { label: "Administration", href: "/admin", icon: "admin" }];
+  return items;
+}
+export const ACCOUNT_PROFILE_PATH = "/account/profile";
+export const CHANGE_PASSWORD_PATH = "/change-password";
 export function isActiveLink(path: string, href: string) {
-  if (href === "/dashboard" && (path === "/events" || path.startsWith("/events/"))) return true;
-  return path === href || (!["/dashboard", "/admin", "/organizer"].includes(href) && path.startsWith(`${href}/`));
+  return path === href || (!["/dashboard", "/admin", "/organizer", "/organizer/events/new"].includes(href) && path.startsWith(`${href}/`));
+}
+/** Sections of one event, nested under the event in the Organizer sidebar's MY EVENTS. Editing starts from Overview. */
+export const eventSections = [
+  { segment: "", label: "Overview", icon: "dashboard" },
+  { segment: "registrations", label: "Registrations", icon: "people" },
+  { segment: "attendance", label: "Attendance", icon: "attendance" },
+] as const;
+export function eventSectionHref(eventId: string, segment: string) { return `/organizer/events/${eventId}${segment ? `/${segment}` : ""}`; }
+/** Overview also covers its Edit page (/settings); other sections also match their sub-routes. */
+export function isActiveEventSection(path: string, eventId: string, segment: string) {
+  const href = eventSectionHref(eventId, segment);
+  return segment ? path === href || path.startsWith(`${href}/`) : path === href || path === `${href}/settings`;
+}
+/** The event id when the path is inside one event workspace (not /organizer/events/new). */
+export function eventIdFromPath(path: string) {
+  const match = /^\/organizer\/events\/([0-9a-f-]{36})(?:\/|$)/i.exec(path);
+  return match?.[1] ?? null;
 }
 export function isAttendanceDisplay(path: string) { return /^\/organizer\/events\/[^/]+\/attendance\/display\/?$/.test(path); }

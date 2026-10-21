@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { navigation, canUseOrganizerTools, canViewOrganizerWorkspace, defaultDashboard, permittedDashboards, dashboardForPath, isActiveLink, isAttendanceDisplay, resolveWorkspaceContext, accountProfileHref, isSharedAccountPath } from "@/lib/navigation";
+import { navigation, navigationFor, eventIdFromPath, eventSectionHref, eventSections, isActiveEventSection, canUseOrganizerTools, canViewOrganizerWorkspace, homeFor, landingFor, roleDashboard, shellDashboard, isActiveLink, isAttendanceDisplay } from "@/lib/navigation";
 const participant = { isAdmin: false, isComplete: true, organizerStatus: "none" as const };
-describe("dashboard permissions and routes", () => {
+const admin = { ...participant, isAdmin: true };
+const organizer = { ...participant, isComplete: false, organizerStatus: "active" as const };
+
+describe("navigation per account", () => {
   it("keeps the four admin modules without the retired Applications workflow", () => {
     expect(navigation.admin.map(({ label, href }) => ({ label, href }))).toEqual([
       { label: "Overview", href: "/admin" },
@@ -10,32 +13,20 @@ describe("dashboard permissions and routes", () => {
       { label: "Reference Data", href: "/admin/lookups" },
     ]);
   });
-  it("keeps participant navigation focused while discovery routes remain part of Home", () => {
+  it("gives Participants Dashboard and Events only (no Certificates or My Events pages)", () => {
     expect(navigation.participant.map(({ label, href }) => ({ label, href }))).toEqual([
-      { label: "Home", href: "/dashboard" }, { label: "My Events", href: "/my-events" }, { label: "Certificates", href: "/certificates" },
+      { label: "Dashboard", href: "/dashboard" }, { label: "Events", href: "/events" },
     ]);
-    expect(isActiveLink("/events", "/dashboard")).toBe(true);
-    expect(isActiveLink("/events/event-id", "/dashboard")).toBe(true);
-    expect(isActiveLink("/events-other", "/dashboard")).toBe(false);
+    expect(isActiveLink("/events/event-id", "/events")).toBe(true);
+    expect(isActiveLink("/events", "/dashboard")).toBe(false);
     expect(isActiveLink("/scan", "/dashboard")).toBe(false);
   });
-  it("offers only participant access to ordinary accounts", () => expect(permittedDashboards(participant)).toEqual(["participant"]));
-  it.each(["active", "suspended", "revoked"] as const)("keeps %s organizers in the switcher", status => expect(permittedDashboards({ ...participant, organizerStatus: status })).toEqual(["participant", "organizer"]));
-  it("combines admin and organizer access without role state", () => expect(permittedDashboards({ ...participant, organizerStatus: "active", isAdmin: true })).toEqual(["participant", "organizer", "admin"]));
-  it("lands incomplete admins in admin and complete admins in participant", () => {
-    expect(defaultDashboard({ ...participant, isAdmin: true, isComplete: false })).toBe("/admin");
-    expect(defaultDashboard({ ...participant, isAdmin: true })).toBe("/dashboard");
-    expect(defaultDashboard({ ...participant, isComplete: false })).toBe("/dashboard");
-  });
-  it.each(["active", "suspended", "revoked"] as const)("routes an incomplete %s Organizer to their authorized workspace", organizerStatus => {
-    expect(defaultDashboard({ ...participant, isComplete: false, organizerStatus })).toBe("/organizer");
-    expect(defaultDashboard({ ...participant, organizerStatus })).toBe("/dashboard");
+  it("gives Organizers Overview and Create Event; events live under MY EVENTS", () => {
+    expect(navigation.organizer.map(i => [i.label, i.href])).toEqual([["Overview", "/organizer"], ["Create Event", "/organizer/events/new"]]);
+    expect(isActiveLink("/organizer/events/new", "/organizer/events/new")).toBe(true);
+    expect(isActiveLink("/organizer/events/abc", "/organizer")).toBe(false);
   });
   it("matches route segments instead of prefix collisions", () => {
-    expect(dashboardForPath("/administrator")).toBe("participant");
-    expect(dashboardForPath("/admin/lookups")).toBe("admin");
-    expect(dashboardForPath("/organizer/events/abc")).toBe("organizer");
-    expect(isActiveLink("/organizer/events/new", "/organizer/events")).toBe(true);
     expect(isActiveLink("/organizer/events", "/organizer")).toBe(false);
     expect(isActiveLink("/events-other", "/events")).toBe(false);
   });
@@ -46,49 +37,73 @@ describe("dashboard permissions and routes", () => {
   });
 });
 
-describe("shared account workspace context", () => {
-  const admin = { ...participant, isAdmin: true };
-  const organizer = { ...participant, isComplete: false, organizerStatus: "active" as const };
-  it("defaults direct account visits to an actual authorized workspace", () => {
-    expect(resolveWorkspaceContext(admin)).toBe("admin");
-    expect(resolveWorkspaceContext(organizer)).toBe("organizer");
-    expect(resolveWorkspaceContext(participant)).toBe("participant");
+describe("role destinations without workspace switching", () => {
+  it("lands each account in its own home, by priority Admin, Organizer, Participant", () => {
+    expect(homeFor(admin)).toBe("/admin");
+    expect(homeFor({ ...admin, organizerStatus: "active" })).toBe("/admin");
+    expect(homeFor(organizer)).toBe("/organizer");
+    expect(homeFor(participant)).toBe("/dashboard");
   });
-  it("retains explicit authorized context for multi-workspace users", () => {
-    expect(resolveWorkspaceContext(admin, "participant")).toBe("participant");
-    expect(resolveWorkspaceContext({ ...admin, organizerStatus: "active" }, "organizer")).toBe("organizer");
+  it("sends an incomplete Participant straight to Student Onboarding, never other roles", () => {
+    expect(landingFor({ ...participant, isComplete: false })).toBe("/onboarding");
+    expect(landingFor(participant)).toBe("/dashboard");
+    expect(landingFor({ ...admin, isComplete: false })).toBe("/admin");
+    expect(landingFor(organizer)).toBe("/organizer");
   });
-  it.each(["admin", "organizer", "https://evil.test", "__proto__", ["admin", "participant"], null])("does not grant permissions from untrusted context %o", requested => {
-    expect(resolveWorkspaceContext(participant, requested)).toBe("participant");
+  it.each(["suspended", "revoked"] as const)("keeps a %s Organizer in the (read-only) Organizer experience", organizerStatus => {
+    expect(roleDashboard({ ...participant, organizerStatus })).toBe("organizer");
   });
-  it("gives Admins the Organizer workspace without changing their organizer status", () => {
-    expect(permittedDashboards(admin)).toEqual(["participant", "organizer", "admin"]);
-    expect(resolveWorkspaceContext(admin, "organizer")).toBe("organizer");
-    expect(admin.organizerStatus).toBe("none");
+  it("shows the account's own sidebar on shared pages", () => {
+    expect(shellDashboard(admin, "/account/profile")).toBe("admin");
+    expect(shellDashboard(organizer, "/events/abc")).toBe("organizer");
+    expect(shellDashboard(organizer, "/my-events")).toBe("organizer");
+    expect(shellDashboard(participant, "/account/profile")).toBe("participant");
+  });
+  it("never shows an area the account does not hold, whatever the URL", () => {
+    expect(shellDashboard(participant, "/admin/users")).toBe("participant");
+    expect(shellDashboard(participant, "/organizer")).toBe("participant");
+    expect(shellDashboard(admin, "/organizer")).toBe("admin");
+    expect(shellDashboard(organizer, "/admin")).toBe("organizer");
+  });
+  it("lets an account holding both roles reach both areas through plain links", () => {
+    const both = { ...admin, organizerStatus: "active" as const };
+    expect(shellDashboard(both, "/organizer/events")).toBe("organizer");
+    expect(navigationFor(both, "admin").at(-1)).toMatchObject({ href: "/organizer" });
+    expect(navigationFor(both, "organizer").at(-1)).toMatchObject({ href: "/admin" });
+    expect(navigationFor(admin, "admin")).toEqual(navigation.admin);
+    expect(navigationFor(organizer, "organizer")).toEqual(navigation.organizer);
   });
 });
 
 describe("organizer capability", () => {
-  const participant = { isAdmin: false, organizerStatus: "none" as const };
-  it("matches the database rule: active organizers and admins use organizer tools", () => {
-    expect(canUseOrganizerTools({ ...participant, organizerStatus: "active" })).toBe(true);
-    expect(canUseOrganizerTools({ ...participant, isAdmin: true })).toBe(true);
+  it("matches the database rule: only active Organizers use organizer tools; Admins are not Organizers unless granted", () => {
+    expect(canUseOrganizerTools(organizer)).toBe(true);
+    expect(canUseOrganizerTools(admin)).toBe(false);
+    expect(canViewOrganizerWorkspace(admin)).toBe(false);
     expect(canUseOrganizerTools(participant)).toBe(false);
   });
-  it.each(["suspended", "revoked"] as const)("keeps %s organizers read-only unless independently Admin", status => {
-    expect(canUseOrganizerTools({ ...participant, organizerStatus: status })).toBe(false);
-    expect(canViewOrganizerWorkspace({ ...participant, organizerStatus: status })).toBe(true);
-    expect(canUseOrganizerTools({ isAdmin: true, organizerStatus: status })).toBe(true);
+  it.each(["suspended", "revoked"] as const)("keeps %s organizers read-only, even when also Admin", status => {
+    expect(canUseOrganizerTools({ organizerStatus: status })).toBe(false);
+    expect(canViewOrganizerWorkspace({ organizerStatus: status })).toBe(true);
   });
-  it("never shows Admin or Organizer workspaces to ordinary participants", () => {
-    expect(canViewOrganizerWorkspace(participant)).toBe(false);
-    expect(permittedDashboards({ ...participant, isComplete: true })).toEqual(["participant"]);
+});
+
+describe("event sections in My Events", () => {
+  const id = "e1000000-0000-4000-8000-000000000001";
+  it("offers only Overview, Registrations and Attendance, on the existing routes", () => {
+    expect(eventSections.map(s => s.label)).toEqual(["Overview", "Registrations", "Attendance"]);
+    expect(eventSections.map(s => eventSectionHref(id, s.segment))).toEqual([`/organizer/events/${id}`, `/organizer/events/${id}/registrations`, `/organizer/events/${id}/attendance`]);
   });
-  it("uses one account route and keeps student details outside shared workspace context", () => {
-    expect(accountProfileHref("admin")).toBe("/account/profile?workspace=admin");
-    expect(accountProfileHref("organizer")).toBe("/account/profile?workspace=organizer");
-    expect(isSharedAccountPath("/profile")).toBe(true);
-    expect(isSharedAccountPath("/account/profile")).toBe(true);
-    expect(isSharedAccountPath("/profile/student")).toBe(false);
+  it("highlights exactly one section; editing counts as Overview", () => {
+    const active = (path: string) => eventSections.filter(s => isActiveEventSection(path, id, s.segment)).map(s => s.label);
+    expect(active(`/organizer/events/${id}`)).toEqual(["Overview"]);
+    expect(active(`/organizer/events/${id}/settings`)).toEqual(["Overview"]);
+    expect(active(`/organizer/events/${id}/attendance/display`)).toEqual(["Attendance"]);
+    expect(active(`/organizer/events/${id}/registrations`)).toEqual(["Registrations"]);
+  });
+  it("recognizes event workspace paths only", () => {
+    expect(eventIdFromPath(`/organizer/events/${id}/attendance`)).toBe(id);
+    expect(eventIdFromPath("/organizer/events/new")).toBeNull();
+    expect(eventIdFromPath("/organizer/explore")).toBeNull();
   });
 });
