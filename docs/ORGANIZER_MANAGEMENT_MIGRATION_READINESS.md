@@ -1,5 +1,8 @@
 # Organizer migrations: read-only readiness review
 
+> **Superseded (2026-10-21):** email invitations are retired for new Organizers. Admins now create accounts directly with a one-time temporary password. See `docs/WORKSPACES_AND_ACCOUNT_PROFILE.md`. Existing invitation records and functions are kept for history.
+
+
 Review date: 2026-10-16 (Asia/Manila). **NOT READY for live execution.**
 No migration, permission change, account creation/promotion, Auth configuration update,
 or email send was performed. Neither migration file nor `.env.local` was edited.

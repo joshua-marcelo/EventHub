@@ -49,3 +49,8 @@ next-env.d.ts
 /.gemini/
 /.pixel-agents/
 /.impeccable/
+
+# playwright
+/test-results/
+/playwright-report/
+/e2e/.auth/

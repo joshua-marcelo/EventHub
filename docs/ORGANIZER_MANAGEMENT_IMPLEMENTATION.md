@@ -1,5 +1,8 @@
 # Admin-controlled Organizer management
 
+> **Superseded (2026-10-21):** email invitations are retired for new Organizers. Admins now create accounts directly with a one-time temporary password. See `docs/WORKSPACES_AND_ACCOUNT_PROFILE.md`. Existing invitation records and functions are kept for history.
+
+
 Implemented locally under the approved policy. No live migrations, accounts,
 promotions, invitation emails, hosted Auth configuration changes, or deployment occurred.
 
