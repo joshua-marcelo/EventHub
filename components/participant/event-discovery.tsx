@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ParticipantEmptyState } from "@/components/participant/empty-state";
 import { EventBanner } from "@/components/mvp/event-banner";
+import { registrationNote, registrationOpen } from "@/lib/participant/registration-window";
 
 import { EventEntryActions } from "@/components/participant/event-entry-actions";
 
@@ -46,14 +47,4 @@ export async function EventDiscovery({ searchParams, basePath }: { searchParams:
     </div></article>)}</div> : <ParticipantEmptyState icon={CalendarDaysIcon} title={filtered ? "No matching events." : "No events available yet."} description={filtered ? "Try another search or category." : "Published university events will appear here."} action={filtered ? <Link href={basePath} className="text-sm font-medium text-orange-800 underline">Clear filters</Link> : undefined} />}
     {(page > 1 || from + data.length < (count ?? 0)) && <nav aria-label="Event pages" className="flex justify-between gap-4 text-sm font-medium">{page > 1 && <Link href={paging(page - 1)} className="underline">Previous</Link>}{from + data.length < (count ?? 0) && <Link href={paging(page + 1)} className="ml-auto underline">Next</Link>}</nav>}
   </section>;
-}
-
-function registrationOpen(enabled: boolean, opens: string | null, closes: string | null, now: number) {
-  return Boolean(enabled && opens && closes && now >= Date.parse(opens) && now < Date.parse(closes));
-}
-/** The same window register_for_event enforces; capacity is checked when registering. */
-function registrationNote(enabled: boolean, opens: string | null, closes: string | null, now: number) {
-  if (registrationOpen(enabled, opens, closes, now)) return "Registration open";
-  if (enabled && opens && now < Date.parse(opens)) return `Registration opens ${formatDateTime(opens)}`;
-  return "Registration closed";
 }
